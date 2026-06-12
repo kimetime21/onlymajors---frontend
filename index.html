@@ -78,6 +78,12 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
   .fade-in { animation: fadeIn 320ms ease-out both; }
 
+  @keyframes scorePulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(15, 122, 62, 0.55); transform: scale(1); }
+    50%      { box-shadow: 0 0 0 10px rgba(15, 122, 62, 0); transform: scale(1.03); }
+  }
+  .score-pulse { animation: scorePulse 1.4s ease-in-out infinite; }
+
   @keyframes shimmer { 0% { background-position: -200% 0 } 100% { background-position: 200% 0 } }
   .shimmer-text {
     background: linear-gradient(90deg, var(--text) 30%, var(--green) 50%, var(--text) 70%);
@@ -208,10 +214,10 @@ const SEASON_TODAY = new Date();
 // --- 2026 MAJORS (real schedule) -----------------------------------------
 // firstTeeTime = when picks lock and other teams' rosters become visible
 const MAJORS = [
-  { id: "masters", name: "The Masters",            short: "Masters",   course: "Augusta National GC",  city: "Augusta, GA",        start: "Apr 9",  end: "Apr 12", firstTeeTime: "2026-04-09T07:50-04:00", lastFinish: "2026-04-12T20:00-04:00", rounds: { r1:"2026-04-09T07:50-04:00", r2:"2026-04-10T07:50-04:00", r3:"2026-04-11T09:00-04:00", r4:"2026-04-12T09:30-04:00" }, picksOpenDate: "2026-03-26", picksOpenLabel: "Mar 26", teeTimeLabel: "Apr 9, 7:50 AM ET", purse: 22500000, fieldSize: 96,  status: "complete", fieldStatus: "set",     fieldLockDate: "Apr 8",  champion: "rory", scene: "scene-masters" },
-  { id: "pga",     name: "PGA Championship",       short: "PGA",       course: "Aronimink GC",         city: "Newtown Square, PA", start: "May 14", end: "May 17", firstTeeTime: "2026-05-14T07:00-04:00", lastFinish: "2026-05-17T20:00-04:00", rounds: { r1:"2026-05-14T07:00-04:00", r2:"2026-05-15T07:00-04:00", r3:"2026-05-16T09:00-04:00", r4:"2026-05-17T09:30-04:00" }, picksOpenDate: "2026-04-30", picksOpenLabel: "Apr 30", teeTimeLabel: "May 14, 7:00 AM ET", purse: 19000000, fieldSize: 156, status: "live", currentRound: 4, roundStatus: "in progress", fieldStatus: "set", fieldLockDate: "May 13", scene: "scene-pga" },
-  { id: "usopen",  name: "U.S. Open",              short: "U.S. Open", course: "Shinnecock Hills",     city: "Southampton, NY",    start: "Jun 18", end: "Jun 21", firstTeeTime: "2026-06-18T06:45-04:00", lastFinish: "2026-06-21T20:00-04:00", rounds: { r1:"2026-06-18T06:45-04:00", r2:"2026-06-19T06:45-04:00", r3:"2026-06-20T09:00-04:00", r4:"2026-06-21T09:30-04:00" }, picksOpenDate: "2026-06-08", picksOpenLabel: "Jun 8",  teeTimeLabel: "Jun 18, 6:45 AM ET", purse: 21500000, fieldSize: 156, status: "upcoming", fieldStatus: "partial", fieldLockDate: "Jun 8",  scene: "scene-usopen" },
-  { id: "open",    name: "The Open Championship",   short: "The Open", course: "Royal Birkdale",       city: "Southport, England", start: "Jul 16", end: "Jul 19", firstTeeTime: "2026-07-16T06:35+01:00", lastFinish: "2026-07-19T20:00+01:00", rounds: { r1:"2026-07-16T06:35+01:00", r2:"2026-07-17T06:35+01:00", r3:"2026-07-18T08:30+01:00", r4:"2026-07-19T09:30+01:00" }, picksOpenDate: "2026-07-07", picksOpenLabel: "Jul 7",  teeTimeLabel: "Jul 16, 6:35 AM BST", purse: 17000000, fieldSize: 156, status: "upcoming", fieldStatus: "pending", fieldLockDate: "Jul 7",  scene: "scene-open" },
+  { id: "masters", name: "The Masters",            short: "Masters",   course: "Augusta National GC",  city: "Augusta, GA",        start: "Apr 9",  end: "Apr 12", firstTeeTime: "2026-04-09T07:50-04:00", lastFinish: "2026-04-12T20:00-04:00", rounds: { r1:"2026-04-09T07:50-04:00", r2:"2026-04-10T07:50-04:00", r3:"2026-04-11T09:00-04:00", r4:"2026-04-12T09:30-04:00" }, picksOpenDate: "2026-04-06", picksOpenLabel: "Apr 6", teeTimeLabel: "Apr 9, 7:50 AM ET", purse: 22500000, fieldSize: 96,  status: "complete", fieldStatus: "set",     fieldLockDate: "Apr 6",  champion: "rory", scene: "scene-masters" },
+  { id: "pga",     name: "PGA Championship",       short: "PGA",       course: "Aronimink GC",         city: "Newtown Square, PA", start: "May 14", end: "May 17", firstTeeTime: "2026-05-14T07:00-04:00", lastFinish: "2026-05-17T20:00-04:00", rounds: { r1:"2026-05-14T07:00-04:00", r2:"2026-05-15T07:00-04:00", r3:"2026-05-16T09:00-04:00", r4:"2026-05-17T09:30-04:00" }, picksOpenDate: "2026-05-11", picksOpenLabel: "May 11", teeTimeLabel: "May 14, 7:00 AM ET", purse: 19000000, fieldSize: 156, status: "live", currentRound: 4, roundStatus: "in progress", fieldStatus: "set", fieldLockDate: "May 11", scene: "scene-pga" },
+  { id: "usopen",  name: "U.S. Open",              short: "U.S. Open", course: "Shinnecock Hills",     city: "Southampton, NY",    start: "Jun 18", end: "Jun 21", firstTeeTime: "2026-06-18T06:45-04:00", lastFinish: "2026-06-21T20:00-04:00", rounds: { r1:"2026-06-18T06:45-04:00", r2:"2026-06-19T06:45-04:00", r3:"2026-06-20T09:00-04:00", r4:"2026-06-21T09:30-04:00" }, picksOpenDate: "2026-06-15", picksOpenLabel: "Jun 15", teeTimeLabel: "Jun 18, 6:45 AM ET", purse: 21500000, fieldSize: 156, status: "upcoming", fieldStatus: "pending", fieldLockDate: "Jun 15",  scene: "scene-usopen" },
+  { id: "open",    name: "The Open Championship",   short: "The Open", course: "Royal Birkdale",       city: "Southport, England", start: "Jul 16", end: "Jul 19", firstTeeTime: "2026-07-16T06:35+01:00", lastFinish: "2026-07-19T20:00+01:00", rounds: { r1:"2026-07-16T06:35+01:00", r2:"2026-07-17T06:35+01:00", r3:"2026-07-18T08:30+01:00", r4:"2026-07-19T09:30+01:00" }, picksOpenDate: "2026-07-13", picksOpenLabel: "Jul 13", teeTimeLabel: "Jul 16, 6:35 AM BST", purse: 17000000, fieldSize: 156, status: "upcoming", fieldStatus: "pending", fieldLockDate: "Jul 13",  scene: "scene-open" },
 ];
 
 // Date-driven status overlay. Mutates each major's `status` field at module
@@ -226,6 +232,17 @@ const MAJORS = [
     if (now < start)      m.status = "upcoming";
     else if (now < end)   m.status = "live";
     else                  m.status = "complete";
+
+    // Auto-flip fieldStatus to "set" once the calendar passes the lock date.
+    // The lock date is the start of the day, so we set EOD by adding 24h.
+    if (m.fieldLockDate && m.fieldStatus !== "set") {
+      // fieldLockDate is a short label like "Jun 8"; parse using year from firstTeeTime
+      const year = new Date(m.firstTeeTime).getFullYear();
+      const parsed = new Date(`${m.fieldLockDate} ${year} 23:59:59`);
+      if (!isNaN(parsed.getTime()) && now >= parsed.getTime()) {
+        m.fieldStatus = "set";
+      }
+    }
   }
 })();
 
@@ -900,6 +917,22 @@ async function apiLeagueMembers(leagueId = 1) {
   return await res.json();
 }
 
+// Fetches the full field for a major from the backend (which pulls from DataGolf).
+// Returns { count, source, players: [{gid, name, country, dg_id, matched}] }.
+async function fetchMajorField(majorId) {
+  const res = await fetch(`${ONLYMAJORS_API}/api/field/${majorId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`field HTTP ${res.status}`);
+  return await res.json();
+}
+
+// Global dynamic registry of players returned by the field endpoint but not in
+// our curated GOLFERS list. Lets the picker show ALL players in the field, and
+// lets the rest of the UI render their name/country if they get picked.
+const GOLFERS_EXT = {};
+function golferLookup(gid) {
+  return G[gid] || GOLFERS_EXT[gid] || { id: gid, name: gid, country: "" };
+}
+
 /* =========================================================================
    PERSISTENCE API HELPERS  (Postgres-backed, with localStorage fallback)
    ========================================================================= */
@@ -910,10 +943,11 @@ async function fetchAllPicks() {
 }
 async function savePick(teamId, majorId, slot) {
   const body = {
-    starters:  slot?.starters  || [],
-    bench:     slot?.bench     || [],
-    subs:      slot?.subs      || [],
-    submitted: !!slot?.submitted,
+    starters:        slot?.starters  || [],
+    bench:           slot?.bench     || [],
+    subs:            slot?.subs      || [],
+    submitted:       !!slot?.submitted,
+    scorePrediction: slot?.scorePrediction ?? null,
   };
   const res = await authFetch(`${ONLYMAJORS_API}/api/picks/${teamId}/${majorId}`, {
     method: "PUT",
@@ -1033,6 +1067,31 @@ function App() {
   const [pickerState, setPickerState] = useState(null);
   const [subState, setSubState] = useState(null);
   const [subOutState, setSubOutState] = useState(null);
+  // Dynamic field per major (fetched from backend on mount). When set, the
+  // picker uses this real DataGolf field instead of the static FIELDS list.
+  const [dynamicFields, setDynamicFields] = useState({});
+  useEffect(() => {
+    const targets = MAJORS.filter(m => m.status === "upcoming" || m.status === "live");
+    Promise.allSettled(targets.map(m =>
+      fetchMajorField(m.id).then(r => {
+        // Hydrate the GOLFERS_EXT registry so unmatched players still render
+        // correctly elsewhere in the UI when they get picked.
+        for (const p of r.players || []) {
+          if (!p.matched && p.gid && !GOLFERS_EXT[p.gid]) {
+            GOLFERS_EXT[p.gid] = { id: p.gid, name: p.name, country: p.country };
+          }
+        }
+        return [m.id, r];
+      })
+    )).then(results => {
+      const out = {};
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) out[r.value[0]] = r.value[1];
+      }
+      setDynamicFields(out);
+    });
+  }, []);
+
   const [picksDraft, setPicksDraft] = useState(() => {
     try { const saved = localStorage.getItem("epga.picks"); if (saved) return JSON.parse(saved); } catch {}
     return PICKS;
@@ -1355,10 +1414,10 @@ function App() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 fade-in" key={tab}>
         {tab === "picks" && (
           <PicksTab viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor}
-            picks={picksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
+            picks={picksDraft} setPicks={setPicksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
             syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} />
         )}
-        {tab === "live"        && <LiveTab picks={picksDraft} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} />}
+        {tab === "live"        && <LiveTab picks={picksDraft} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} />}
 
         {tab === "chat"        && <ChatTab user={user} picks={picksDraft} messages={chatMessages} onSend={sendMessage} />}
         {tab === "leaderboard" && <LeaderboardTab picks={picksDraft} viewAs={viewAs} />}
@@ -1370,7 +1429,7 @@ function App() {
 
 
       {pickerState && (
-        <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={picksDraft}
+        <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={picksDraft} dynamicField={dynamicFields[selectedMajor]}
           onPick={(gid) => {
             const next = JSON.parse(JSON.stringify(picksDraft));
             const slot = next[viewAs][selectedMajor];
@@ -1959,7 +2018,7 @@ function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
   );
 }
 
-function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, openPicker, openSub, openSubOut, onRemove, syncStatus, lastUpdated, onRefresh }) {
+function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, openPicker, openSub, openSubOut, onRemove, syncStatus, lastUpdated, onRefresh }) {
   const team = TEAMS.find(t => t.id === viewAs);
   const major = M[selectedMajor];
   const slot = picks[viewAs][selectedMajor];
@@ -1999,10 +2058,8 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, openPicker, 
           <div className="mt-5 grid grid-cols-3 gap-3">
             <HeroStat label="Your team total" value={fmt(teamMajorTotal(viewAs, selectedMajor))} sub={major.status === "live" ? "projected" : major.status === "complete" ? "final" : "—"} accent />
             <HeroStat label="Left on base" value={fmt(teamMajorLOB(viewAs, selectedMajor))} sub="bench earnings" />
-            <HeroStat label="Field size" value={major.fieldSize} sub={major.fieldStatus === "set" ? "locked" : major.fieldStatus === "partial" ? `locks ${major.fieldLockDate}` : "TBD"} />
+            <HeroStat label="Field size" value={major.fieldSize} sub="players" />
           </div>
-
-          <FieldStatusBanner major={major} />
         </div>
       </div>
 
@@ -2046,6 +2103,19 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, openPicker, 
           </section>
         </>
       )}
+
+      {/* Winning score prediction — locks when first tee time hits */}
+      {major.status !== "upcoming" || arePicksOpen(major) ? (
+        <ScorePredictor
+          locked={major.status !== "upcoming"}
+          value={slot?.scorePrediction ?? null}
+          onChange={(v) => {
+            const next = JSON.parse(JSON.stringify(picks));
+            next[viewAs][selectedMajor].scorePrediction = v;
+            setPicks(next);
+          }}
+        />
+      ) : null}
 
       {/* Played this season */}
       <div className="glass rounded-2xl p-5">
@@ -2216,6 +2286,137 @@ function SubsLockedBanner({ major }) {
   );
 }
 
+// SCORE_OPTIONS: -20 (best) up to +10 (worst), with 0 displayed as "E".
+const SCORE_OPTIONS = (() => {
+  const out = [];
+  for (let s = -20; s <= 10; s++) out.push(s);
+  return out;
+})();
+function fmtScoreToPar(s) {
+  if (s === 0)  return "E";
+  if (s > 0)    return `+${s}`;
+  return `${s}`;
+}
+
+function ScorePredictor({ value, onChange, locked }) {
+  // Local draft state — reel scroll only updates draftValue. Committing to the
+  // server happens only when the user clicks "Lock in prediction".
+  const [draftValue, setDraftValue] = useState(value ?? null);
+  const [justLocked, setJustLocked] = useState(false);
+  const scrollRef = useRef(null);
+  const ITEM_H = 44;
+
+  // Initialize scroll position to current value (or 0 by default)
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const startVal = value ?? 0;
+    const idx = SCORE_OPTIONS.indexOf(startVal);
+    if (idx === -1) return;
+    scrollRef.current.scrollTop = idx * ITEM_H;
+    setDraftValue(value ?? 0);
+  }, []); // eslint-disable-line
+
+  // Resync when server value changes
+  useEffect(() => {
+    if (value != null) setDraftValue(value);
+  }, [value]);
+
+  // Debounced "snap to nearest" — updates draft only, no save
+  const debounceRef = useRef(null);
+  const handleScroll = () => {
+    if (locked) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const idx = Math.round(el.scrollTop / ITEM_H);
+      const clamped = Math.max(0, Math.min(SCORE_OPTIONS.length - 1, idx));
+      const newVal = SCORE_OPTIONS[clamped];
+      el.scrollTo({ top: clamped * ITEM_H, behavior: "smooth" });
+      setDraftValue(newVal);
+    }, 100);
+  };
+
+  const draftIsDirty = draftValue !== null && draftValue !== value;
+  const lockIn = () => {
+    if (locked || draftValue === null) return;
+    onChange(draftValue);
+    setJustLocked(true);
+    setTimeout(() => setJustLocked(false), 1800);
+  };
+
+  return (
+    <div className="glass rounded-2xl p-5">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <h3 className="font-semibold">Winning score prediction</h3>
+          <div className="text-xs text-dim mt-0.5">
+            {locked
+              ? <>Final pick · locked at first tee</>
+              : draftIsDirty
+                ? "Lock in your pick when you're ready"
+                : value != null
+                  ? "Saved — you can change it anytime before first tee"
+                  : "Scroll to pick your number"}
+          </div>
+        </div>
+        {value != null && (
+          <div className="text-right leading-tight">
+            <div className="text-[10px] uppercase tracking-wider text-dim">Locked in</div>
+            <div className="display-num font-bold text-xl text-green">{fmtScoreToPar(value)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* The reel */}
+      <div className="relative mx-auto" style={{ width: "180px" }}>
+        <div className="absolute inset-x-0 pointer-events-none flex items-center justify-center" style={{ top: ITEM_H, height: ITEM_H }}>
+          <div className="w-full border-y border-green/40 bg-green/8" />
+        </div>
+        <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: ITEM_H, background: "linear-gradient(to bottom, var(--bg2) 0%, transparent 100%)" }} />
+        <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: ITEM_H, background: "linear-gradient(to top, var(--bg2) 0%, transparent 100%)" }} />
+
+        <div ref={scrollRef} onScroll={handleScroll}
+          className={`overflow-y-auto scrollbar-hide ${locked ? "pointer-events-none" : ""}`}
+          style={{
+            height: `${ITEM_H * 3}px`,
+            scrollSnapType: "y mandatory",
+            paddingTop: `${ITEM_H}px`,
+            paddingBottom: `${ITEM_H}px`,
+          }}>
+          {SCORE_OPTIONS.map((s, i) => (
+            <div key={s} style={{ height: `${ITEM_H}px`, scrollSnapAlign: "center" }}
+              className={`flex items-center justify-center display-num font-bold text-2xl ${draftValue === s ? "text-green" : "text-muted"}`}>
+              {fmtScoreToPar(s)}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Lock-in button — pulses green when the draft differs from saved */}
+      {!locked && (
+        <div className="mt-4 flex justify-center">
+          <button
+            onClick={lockIn}
+            disabled={!draftIsDirty && !justLocked}
+            className={`relative px-5 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap
+              ${justLocked
+                ? "bg-green text-bg2 cursor-default"
+                : draftIsDirty
+                  ? "bg-green text-bg2 hover:bg-green-2 score-pulse"
+                  : "bg-black/[0.04] text-dim cursor-not-allowed"}`}>
+            {justLocked
+              ? <>✓ Locked in at <span className="font-mono">{fmtScoreToPar(value)}</span></>
+              : draftIsDirty
+                ? <>Lock in <span className="font-mono">{fmtScoreToPar(draftValue)}</span></>
+                : value != null ? "Locked in" : "Pick a number first"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PicksClosedGate({ major }) {
   const daysOut = daysUntilPicksOpen(major);
   return (
@@ -2228,14 +2429,13 @@ function PicksClosedGate({ major }) {
       </div>
       <h3 className="font-bold text-lg">Picks aren't open yet</h3>
       <p className="text-sm text-muted mt-1 max-w-md mx-auto">
-        Rosters for {major.name} open <strong className="text-text">{major.picksOpenLabel}</strong> — once Final Qualifying completes and the field is officially set.
+        Rosters for {major.name} open <strong className="text-text">{major.picksOpenLabel}</strong>.
       </p>
       <div className="mt-4 inline-flex items-center gap-2 bg-black/[0.03] border border-line rounded-md px-3 py-2 text-xs">
         <div className="text-[10px] uppercase tracking-wider text-dim">Opens in</div>
         <div className="display-num font-bold text-base">{daysOut} <span className="text-sm font-medium text-muted">days</span></div>
         <div className="text-[10px] text-dim">· lock at first tee time {major.teeTimeLabel}</div>
       </div>
-      <div className="text-[11px] text-dim mt-4">Until then we wait — Final Qualifying, special exemptions, and withdrawals all shape who's in the field. Once it's locked, you'll be drafting from the real 156-player roster.</div>
     </div>
   );
 }
@@ -2286,7 +2486,7 @@ function PlayedList({ teamId, picks }) {
 }
 
 function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut, isIn, onClick, onSub, onSubOut, onRemove }) {
-  const g = golferId ? G[golferId] : null;
+  const g = golferId ? (G[golferId] || GOLFERS_EXT[golferId] || null) : null;
   const earn = golferId ? EARN[majorId]?.[golferId] : null;
   const total = golferId ? golferTotal(majorId, golferId) : null;
   const isMC = earn && (earn.status === "mc" || earn.status === "wd" || earn.status === "dfl");
@@ -2294,7 +2494,7 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
   // Empty slot — clean, no role label
   if (!g) {
     return (
-      <button onClick={onClick} disabled={major.status === "complete"}
+      <button onClick={onClick} disabled={major.status !== "upcoming"}
         className={`group w-full rounded-lg border border-dashed border-line-2 hover:border-green/50 hover:bg-green/5 transition-all px-3 sm:px-4 py-3 flex items-center gap-3 ${major.status === "complete" ? "opacity-40 cursor-not-allowed" : ""}`}>
         <div className="w-9 h-9 rounded-md bg-white border border-line group-hover:bg-green/10 group-hover:border-green/40 flex items-center justify-center text-lg text-dim">+</div>
         <div className="flex-1 text-left">
@@ -2457,7 +2657,10 @@ function ChatPanel({ user, messages, onSend }) {
 
 function Message({ message, isMe, groupWithPrev }) {
   const team = TEAMS.find(t => t.id === message.teamId);
-  const time = useRelativeTime(new Date(message.ts));
+  // Coerce ts to a number — Postgres BIGINT is returned as a string by node-postgres,
+  // and `new Date("1717xxxxx")` returns Invalid Date which makes the relative time NaN.
+  const tsNum = typeof message.ts === "string" ? Number(message.ts) : message.ts;
+  const time = useRelativeTime(Number.isFinite(tsNum) ? new Date(tsNum) : null);
   if (!team) return null;
   return (
     <div className={`flex gap-2 ${isMe ? "flex-row-reverse" : "flex-row"} ${groupWithPrev ? "mt-1" : "mt-3"}`}>
@@ -2787,13 +2990,22 @@ function EmptyLiveState({ major }) {
   );
 }
 
-function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh }) {
-  // Default to the live major. If none, default to the most recent complete.
+function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks }) {
   const liveMajor = MAJORS.find(m => m.status === "live");
   const lastComplete = [...MAJORS].reverse().find(m => m.status === "complete");
+  const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
   const defaultMajor = liveMajor || lastComplete || MAJORS[0];
+  // useState must be called unconditionally — keep it here even when we end up
+  // rendering the pre-tournament hero below.
   const [viewedMajorId, setViewedMajorId] = useState(defaultMajor.id);
   const viewed = M[viewedMajorId] || defaultMajor;
+
+  // Pre-tournament state: picks are open for an upcoming major but the
+  // tournament hasn't teed off yet. Show the "picks open" hero instead of
+  // last week's results so friends know what's about to happen.
+  if (!liveMajor && upcomingOpen) {
+    return <PicksOpenLiveState major={upcomingOpen} picks={picks} onGotoPicks={onGotoPicks} />;
+  }
   const isLive = viewed.status === "live";
   const hasData = Object.keys(EARN[viewed.id] || {}).length > 0;
 
@@ -2883,6 +3095,150 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh }) {
           <LiveTeamRow key={row.team.id} row={row} rank={idx+1} majorId={viewed.id} leader={rows[0].total} />
         ))}
       </div>
+
+      {/* Score Predictions */}
+      <ScorePredictionsPanel picks={picks} majorId={viewed.id} />
+    </div>
+  );
+}
+
+function ScorePredictionsPanel({ picks, majorId }) {
+  // Pull the live tournament leader's score-to-par for context.
+  const leaderScore = useMemo(() => {
+    const e = EARN[majorId] || {};
+    let best = null;
+    for (const gid of Object.keys(e)) {
+      const v = e[gid];
+      if (v?.status === "mc" || v?.status === "wd" || v?.status === "dfl") continue;
+      if (typeof v?.score !== "number") continue;
+      if (best === null || v.score < best) best = v.score;
+    }
+    return best;
+  }, [majorId]);
+
+  const predictions = useMemo(() => {
+    return TEAMS.map(t => ({
+      team: t,
+      pick: picks?.[t.id]?.[majorId]?.scorePrediction ?? null,
+    }))
+    .filter(p => p.pick != null)
+    .sort((a, b) => a.pick - b.pick);
+  }, [picks, majorId]);
+
+  if (predictions.length === 0) return null;
+
+  return (
+    <div className="glass rounded-2xl p-5">
+      <div className="flex items-baseline justify-between flex-wrap gap-2 mb-3">
+        <div>
+          <h3 className="font-semibold">Score Predictions</h3>
+          <div className="text-xs text-dim mt-0.5">
+            {leaderScore != null
+              ? <>Leader: <span className="font-mono font-semibold text-text">{fmtScoreToPar(leaderScore)}</span></>
+              : "Tournament hasn't started yet"}
+          </div>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        {predictions.map((p, i) => {
+          const diff = leaderScore != null ? Math.abs(p.pick - leaderScore) : null;
+          return (
+            <div key={p.team.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white border border-line">
+              <span className="text-[10px] uppercase tracking-wider text-dim w-5 font-mono">#{i+1}</span>
+              <TeamBadge team={p.team} size="sm" />
+              <span className="flex-1 font-medium truncate">{p.team.name}</span>
+              <span className="display-num font-bold text-base text-text">{fmtScoreToPar(p.pick)}</span>
+              {diff != null && <span className="text-[10px] text-dim font-mono w-12 text-right">{diff === 0 ? "spot on" : `±${diff}`}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PicksOpenLiveState({ major, picks, onGotoPicks }) {
+  // Countdown to first tee
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const teeTimeMs = new Date(major.firstTeeTime).getTime();
+  const now = Date.now();
+  const diffMs = Math.max(0, teeTimeMs - now);
+  const days = Math.floor(diffMs / (24*60*60*1000));
+  const hours = Math.floor((diffMs % (24*60*60*1000)) / (60*60*1000));
+  const minutes = Math.floor((diffMs % (60*60*1000)) / (60*1000));
+
+  // Tally who's submitted vs not
+  const submittedTeams = TEAMS.filter(t => {
+    const slot = picks?.[t.id]?.[major.id];
+    return slot && slot.starters?.filter(Boolean).length === 4;
+  });
+  const pendingTeams = TEAMS.filter(t => !submittedTeams.includes(t));
+
+  return (
+    <div className="space-y-6">
+      <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${major.scene}`}>
+        <div className="absolute inset-0 dot-grid opacity-40"/>
+        <div className="relative p-6 sm:p-8">
+          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-dim mb-3">
+            <span className="inline-flex items-center gap-1.5">
+              <span className="live-dot w-1.5 h-1.5 bg-green rounded-full inline-block"/>
+              Picks are open
+            </span>
+            <span>·</span>
+            <span>{major.name}</span>
+          </div>
+          <div className="font-bold text-2xl sm:text-3xl">Picks lock at first tee</div>
+          <div className="text-sm text-muted mt-1">{major.teeTimeLabel}</div>
+
+          <div className="mt-5 grid grid-cols-3 gap-3 max-w-md">
+            <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
+              <div className="display-num font-bold text-2xl">{days}</div>
+              <div className="text-[10px] uppercase tracking-wider text-dim">days</div>
+            </div>
+            <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
+              <div className="display-num font-bold text-2xl">{hours}</div>
+              <div className="text-[10px] uppercase tracking-wider text-dim">hours</div>
+            </div>
+            <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
+              <div className="display-num font-bold text-2xl">{minutes}</div>
+              <div className="text-[10px] uppercase tracking-wider text-dim">minutes</div>
+            </div>
+          </div>
+
+          <button onClick={onGotoPicks}
+            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm bg-green text-bg2 hover:bg-green-2 transition-colors score-pulse">
+            Click here to lock in picks
+            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M13 6l6 6-6 6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div className="glass rounded-2xl p-5">
+        <h3 className="font-semibold mb-3">League status · {submittedTeams.length} of {TEAMS.length} picked</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {submittedTeams.map(t => (
+            <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-green/8 border border-green/25">
+              <TeamBadge team={t} size="sm" />
+              <span className="flex-1 text-sm font-medium truncate">{t.name}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-green">In</span>
+            </div>
+          ))}
+          {pendingTeams.map(t => (
+            <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-black/[0.03] border border-line">
+              <TeamBadge team={t} size="sm" />
+              <span className="flex-1 text-sm font-medium truncate">{t.name}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-dim">Pending</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2935,7 +3291,7 @@ function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, liveMajor, complet
 }
 
 function LiveTeamRow({ row, rank, majorId, leader }) {
-  const [open, setOpen] = useState(rank === 1);
+  const [open, setOpen] = useState(false);
   const pct = leader > 0 ? (row.total / leader) * 100 : 0;
   const subs = row.subs || [];
   const hasSubs = subs.length > 0;
@@ -3010,7 +3366,8 @@ function LiveTeamRow({ row, rank, majorId, leader }) {
 }
 
 function LiveLineItem({ golferId, majorId, slot, role }) {
-  const g = G[golferId];
+  const g = G[golferId] || GOLFERS_EXT[golferId];
+  if (!g) return null;
   const earn = EARN[majorId]?.[golferId];
   const total = golferTotal(majorId, golferId);
   const isIn = isGolferIn(slot, golferId);
@@ -3141,13 +3498,13 @@ function StandingsRow({ row, idx, viewAs, picks }) {
               </span>
             )}
           </div>
-          {row.behind !== 0 && (
-            <div className="text-[11px] text-dim mt-0.5 font-mono">behind {fmt(row.behind)}</div>
-          )}
         </div>
         <div className="text-right shrink-0 leading-tight">
           <div className="text-[10px] uppercase tracking-wider text-dim">Total</div>
           <div className={`display-num font-bold text-base sm:text-lg ${isLead ? "text-gold" : "text-text"}`}>{fmtFull(row.total)}</div>
+          {row.behind !== 0 && (
+            <div className="text-[11px] text-dim mt-0.5 font-mono">behind {fmt(row.behind)}</div>
+          )}
         </div>
         <svg viewBox="0 0 24 24" className={`w-4 h-4 text-dim shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9"/>
@@ -3514,9 +3871,7 @@ function Rule({ n, t, children }) {
 /* =========================================================================
    PICKER MODAL
    ========================================================================= */
-function PickerModal({ state, teamId, majorId, picks, onPick, onClose }) {
-  const [q, setQ] = useState("");
-  const [showOOF, setShowOOF] = useState(false);
+function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onClose }) {
   const major = M[majorId];
 
   const lockedFromOthers = useMemo(() => {
@@ -3524,7 +3879,10 @@ function PickerModal({ state, teamId, majorId, picks, onPick, onClose }) {
     for (const m of MAJORS) {
       if (m.id === majorId) continue;
       const p = picks[teamId][m.id];
-      p.starters.forEach(g => g && s.add(g));
+      // Original starters are locked
+      p.starters?.forEach(g => g && s.add(g));
+      // Subbed-in bench players also played → locked
+      (p.subs || []).forEach(sub => { if (sub.in) s.add(sub.in); });
     }
     return s;
   }, [picks, teamId, majorId]);
@@ -3534,59 +3892,78 @@ function PickerModal({ state, teamId, majorId, picks, onPick, onClose }) {
     return new Set([...p.starters, ...p.bench].filter(Boolean));
   }, [picks, teamId, majorId]);
 
-  const matched = GOLFERS.filter(g => g.name.toLowerCase().includes(q.toLowerCase()));
-  const field   = matched.filter(g => inField(majorId, g.id));
-  const nonField= matched.filter(g => !inField(majorId, g.id));
+  // Use the dynamic field if available, else fall back to curated FIELDS list.
+  // Dynamic field comes from /api/field (DataGolf), includes the full ~156 players.
+  const fieldPlayers = useMemo(() => {
+    if (dynamicField?.players?.length) {
+      return dynamicField.players.map(p => ({ id: p.gid, name: p.name, country: p.country }));
+    }
+    return (FIELDS[majorId] || []).map(gid => {
+      const g = G[gid];
+      return g ? { id: gid, name: g.name, country: g.country } : null;
+    }).filter(Boolean);
+  }, [dynamicField, majorId]);
+
+  // Group alphabetically by last name
+  const sorted = useMemo(() => {
+    return [...fieldPlayers].sort((a, b) => {
+      const lastA = (a.name || "").split(/\s+/).pop().toLowerCase();
+      const lastB = (b.name || "").split(/\s+/).pop().toLowerCase();
+      return lastA.localeCompare(lastB);
+    });
+  }, [fieldPlayers]);
+
+  // Bucket into A-Z groups by first letter of last name
+  const grouped = useMemo(() => {
+    const buckets = {};
+    for (const p of sorted) {
+      const last = (p.name || "").split(/\s+/).pop();
+      const letter = (last[0] || "?").toUpperCase();
+      (buckets[letter] = buckets[letter] || []).push(p);
+    }
+    return Object.entries(buckets).sort(([a],[b]) => a.localeCompare(b));
+  }, [sorted]);
 
   const renderRow = (g) => {
     const locked = lockedFromOthers.has(g.id);
     const lineup = inLineup.has(g.id);
-    const notInField = !inField(majorId, g.id);
-    const disabled = locked || lineup || notInField;
+    const disabled = locked || lineup;
     return (
       <button key={g.id} disabled={disabled} onClick={() => onPick(g.id)}
-        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-green/10"}`}>
+        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-green/10 active:bg-green/15"}`}>
         <CountryCode code={g.country} className="w-9" />
         <span className="flex-1 font-medium">{g.name}</span>
-        {locked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/[0.04] text-dim font-semibold">Played earlier</span>}
-        {lineup && !locked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/15 text-gold font-semibold border border-gold/30">In lineup</span>}
-        {notInField && !locked && !lineup && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/15 text-red border border-red-500/30 font-semibold">Not in field</span>}
+        {locked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/[0.04] text-dim font-semibold whitespace-nowrap">Played earlier</span>}
+        {lineup && !locked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/15 text-gold font-semibold border border-gold/30 whitespace-nowrap">In lineup</span>}
       </button>
     );
   };
 
+  const fieldCount = sorted.length;
+  const sourceLabel = dynamicField?.source === "in-play"     ? "DataGolf · live"
+                    : dynamicField?.source === "field-updates" ? "DataGolf · field updates"
+                    : dynamicField?.source === "snapshots"     ? "snapshot"
+                    : "curated list";
+
   return (
     <Modal title={`Pick a ${state.slotType === "starter" ? "starter" : "bench player"} — ${major.short}`} onClose={onClose}>
-      <div className="text-xs text-dim mb-2">
-        {major.fieldStatus === "set"     && <>Field locked · {major.fieldSize} golfers · showing top {FIELDS[majorId].length} below</>}
-        {major.fieldStatus === "partial" && <>Final field of {major.fieldSize} · {FIELDS[majorId].length} exempt confirmed · locks {major.fieldLockDate}</>}
-        {major.fieldStatus === "pending" && <>Field announced {major.fieldLockDate}</>}
+      <div className="text-xs text-dim mb-3 flex items-center justify-between">
+        <span>{fieldCount} golfers in the field · sorted A–Z</span>
+        <span className="text-[10px] uppercase tracking-wider text-dim">{sourceLabel}</span>
       </div>
-      <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search golfers…"
-        className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2 mb-3 text-sm focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
-      <div className="max-h-[55vh] overflow-y-auto -mx-2">
-        {field.length > 0 && (
-          <>
-            <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-dim font-semibold">In the field</div>
-            {field.map(renderRow)}
-          </>
+      <div className="max-h-[65vh] overflow-y-auto -mx-2 pb-2">
+        {grouped.length === 0 && (
+          <div className="text-sm text-dim px-3 py-6 text-center">
+            <div className="font-semibold mb-1">Field hasn't been published yet</div>
+            <div className="text-[11px]">It'll auto-load as soon as DataGolf has the {major.short} field.</div>
+          </div>
         )}
-        {field.length === 0 && q && (
-          <div className="text-sm text-dim px-3 py-3">No in-field golfers match “{q}”.</div>
-        )}
-        {nonField.length > 0 && (
-          <>
-            <button onClick={() => setShowOOF(s => !s)}
-              className="w-full text-left px-3 py-2 mt-2 text-xs text-dim hover:bg-white rounded-md flex items-center justify-between">
-              <span>Not in field ({nonField.length}) — can't be picked for {major.short}</span>
-              <svg viewBox="0 0 16 16" className={`w-4 h-4 text-muted shrink-0 transition-transform ${showOOF ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6l5 5 5-5"/>
-              </svg>
-            </button>
-            {showOOF && nonField.map(renderRow)}
-          </>
-        )}
-        {matched.length === 0 && <div className="text-sm text-dim px-3 py-4">No golfers match “{q}”.</div>}
+        {grouped.map(([letter, players]) => (
+          <div key={letter}>
+            <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-dim font-bold border-b border-line z-10">{letter}</div>
+            {players.map(renderRow)}
+          </div>
+        ))}
       </div>
     </Modal>
   );
