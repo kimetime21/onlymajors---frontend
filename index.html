@@ -1085,11 +1085,14 @@ function App() {
     const league = leagues.find(l => l.id === activeLeagueId);
     if (!league) return null;
     const teamShape = TEAMS.find(t => t.id === league.teamId) || {};
+    // Precedence: TEAMS (which absorbs profile renames via /api/profiles) wins
+    // over the static league_members row. Falls back to league data for
+    // newly-created leagues that aren't in the curated TEAMS list.
     const merged = {
       ...teamShape,
       id:   league.teamId,
-      name: league.teamName || teamShape.name,
-      color: league.teamColor || teamShape.color,
+      name: teamShape.name  || league.teamName,
+      color: teamShape.color || league.teamColor,
       email: authedUser.email,
       displayName: authedUser.displayName,
       authedUserId: authedUser.id,
