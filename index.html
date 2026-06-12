@@ -1043,6 +1043,8 @@ function App() {
   const [activeLeagueId, setActiveLeagueId] = useState(null);   // null = show Hub
   const [authChecking, setAuthChecking] = useState(true);
   const [tab, setTab] = useState("picks");
+  // null | 'auto' (must swipe through) | 'manual' (X dismiss available)
+  const [onboardingMode, setOnboardingMode] = useState(null);
   // Default selected major: pick the most relevant one based on calendar.
   //   1. Live major (a tournament is currently in progress) — most urgent.
   //   2. Any upcoming major whose pick window has opened (2 weeks before tee).
@@ -1104,6 +1106,24 @@ function App() {
     } catch {}
     return merged;
   }, [authedUser, leagues, activeLeagueId]);
+
+  // Auto-show the onboarding carousel the first time a user lands on this
+  // device. The seen-flag is keyed per authed user so different accounts on
+  // the same browser each see it once.
+  useEffect(() => {
+    if (!authedUser) return;
+    const key = `epga.onboarded.${authedUser.id}`;
+    let seen = false;
+    try { seen = !!localStorage.getItem(key); } catch {}
+    if (!seen) setOnboardingMode("auto");
+  }, [authedUser]);
+
+  const closeOnboarding = () => {
+    if (onboardingMode === "auto" && authedUser) {
+      try { localStorage.setItem(`epga.onboarded.${authedUser.id}`, "1"); } catch {}
+    }
+    setOnboardingMode(null);
+  };
 
   // On mount: if we have a token, hydrate from /api/me.
   useEffect(() => {
@@ -1485,15 +1505,19 @@ function App() {
 
   if (authChecking) return <div className="min-h-screen flex items-center justify-center text-dim text-sm">Loading…</div>;
   if (!authedUser) return <LoginScreen onAuthed={applyAuthResult} />;
-  // Multi-league user with no active selection → show the Hub.
+  // Multi-league user with no active selection → show the Hub (with onboarding overlay).
   if (!activeLeagueId) return (
-    <LeagueHub authedUser={authedUser} leagues={leagues} picks={picksDraft}
-      onEnterLeague={(id) => { setActiveLeagueId(id); setTab("picks"); }}
-      onLeaguesChanged={(nextLeagues, nextActiveId) => {
-        setLeagues(nextLeagues);
-        if (nextActiveId) setActiveLeagueId(nextActiveId);
-      }}
-      onSignOut={signOut} />
+    <>
+      <LeagueHub authedUser={authedUser} leagues={leagues} picks={picksDraft}
+        onEnterLeague={(id) => { setActiveLeagueId(id); setTab("picks"); }}
+        onLeaguesChanged={(nextLeagues, nextActiveId) => {
+          setLeagues(nextLeagues);
+          if (nextActiveId) setActiveLeagueId(nextActiveId);
+        }}
+        onSignOut={signOut}
+        onOpenOnboarding={() => setOnboardingMode("manual")} />
+      {onboardingMode && <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} />}
+    </>
   );
   if (!user) return <div className="min-h-screen flex items-center justify-center text-dim text-sm">Loading league…</div>;
 
@@ -1501,7 +1525,8 @@ function App() {
     <div className="min-h-screen flex flex-col" data-sync={syncToken}>
       <TopBar user={user} onSignOut={signOut} onSwitchUser={null} onResetPicks={resetPicks} onResetAll={resetAll}
         onOpenProfile={() => setTab("profile")} onOpenLeague={() => setTab("league")}
-        onBackToHub={() => setActiveLeagueId(null)} multiLeague={leagues.length > 1} />
+        onBackToHub={() => setActiveLeagueId(null)} multiLeague={leagues.length > 1}
+        onOpenOnboarding={() => setOnboardingMode("manual")} />
       <TabBar tab={tab} setTab={setTab} />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 fade-in" key={tab}>
         {tab === "picks" && (
@@ -1519,6 +1544,9 @@ function App() {
       <Footer />
       <SyncToast status={syncStatus} message={syncMessage} />
 
+      {onboardingMode && (
+        <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} />
+      )}
 
       {pickerState && (
         <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={picksDraft} dynamicField={dynamicFields[selectedMajor]}
@@ -1576,7 +1604,7 @@ function compact(arr, len) { const o = arr.filter(x => x != null); while (o.leng
 /* =========================================================================
    TOP BAR + RUNNING SEASON TOTAL
    ========================================================================= */
-function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague }) {
+function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding }) {
   const viewAs = user.id;
   const liveMajor = MAJORS.find(m => m.status === "live");
   const settled  = MAJORS.filter(m => m.status === "complete").reduce((s, m) => s + teamMajorTotal(viewAs, m.id), 0);
@@ -1598,7 +1626,7 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
             <div className="text-[10px] uppercase tracking-[0.18em] text-dim">OnlyMajors</div>
             <div className="font-bold text-base sm:text-lg truncate">Experts PGA Fantasy <span className="text-muted font-medium">· 2026</span></div>
           </div>
-          <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} onBackToHub={onBackToHub} multiLeague={multiLeague} />
+          <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} onBackToHub={onBackToHub} multiLeague={multiLeague} onOpenOnboarding={onOpenOnboarding} />
         </div>
 
         {/* Row 2 — full-width stats strip, even spacing across all four metrics */}
@@ -1909,7 +1937,7 @@ function AuthField({ label, type, value, onChange, placeholder }) {
    with picks status, season standing, and live position. CTAs to join + start
    another league.
    ========================================================================= */
-function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSignOut }) {
+function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSignOut, onOpenOnboarding }) {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
@@ -1958,6 +1986,11 @@ function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSig
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span className="text-dim hidden sm:inline">{authedUser.email}</span>
+            {onOpenOnboarding && (
+              <button onClick={onOpenOnboarding} className="text-dim hover:text-text transition-colors text-xs uppercase tracking-wider font-semibold">
+                How it works
+              </button>
+            )}
             <button onClick={onSignOut} className="text-dim hover:text-text transition-colors text-xs uppercase tracking-wider font-semibold">
               Sign out
             </button>
@@ -2278,7 +2311,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
 /* =========================================================================
    USER MENU (top right) — replaces TeamSelector
    ========================================================================= */
-function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague }) {
+function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
 
@@ -2347,6 +2380,17 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
               <path d="M2 14c0-3 3-5 6-5s6 2 6 5"/>
             </svg>
             Profile settings
+          </button>
+
+          {/* How OnlyMajors works (re-open the onboarding carousel) */}
+          <button onClick={() => { onOpenOnboarding && onOpenOnboarding(); setOpen(false); }}
+            className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="8" r="6"/>
+              <path d="M8 11.5v.01"/>
+              <path d="M6 6a2 2 0 014 0c0 1-2 1.5-2 3"/>
+            </svg>
+            How it works
           </button>
 
           {/* League information */}
@@ -2487,6 +2531,151 @@ function TabBar({ tab, setTab }) {
         ))}
       </div>
     </nav>
+  );
+}
+
+/* =========================================================================
+   ONBOARDING CAROUSEL — auto-shown after first login, re-openable from the
+   user menu. Five slides walk new users through the rules.
+   Each slide takes an optional `image` (URL or base64 data: URL). When set,
+   the modal renders the screenshot in the image area; otherwise it shows a
+   labeled placeholder so it's clear which screen the slide refers to.
+   ========================================================================= */
+const ONBOARDING_SLIDES = [
+  {
+    title: "Welcome to OnlyMajors",
+    body:  "Fantasy golf, distilled down to the four tournaments that actually matter. Build a lineup for each major, watch it play out live, beat your friends.",
+    image: null,
+    placeholder: "Hero shot · brand + standings preview",
+  },
+  {
+    title: "Pick four. Bench the rest.",
+    body:  "Each major, you draft 4 starters from the field. Everyone else in that field sits on your bench. Picks open Monday of tournament week and lock at the first tee time on Thursday.",
+    image: null,
+    placeholder: "Picks tab · 4 starters + bench",
+  },
+  {
+    title: "You earn what they earn",
+    body:  "Your score is the actual prize money your 4 starters take home. The bigger their cut, the higher you climb. The leaderboard updates live during play.",
+    image: null,
+    placeholder: "Live tab · earnings ticker",
+  },
+  {
+    title: "Subs + the score predictor",
+    body:  "Before each round, swap a starter out for any bench player. Once the round tees off, your lineup locks until the next morning. Lock in a winning-score prediction too — your guess shows up under the live leaderboard.",
+    image: null,
+    placeholder: "Sub modal · score predictor reel",
+  },
+  {
+    title: "Win the season",
+    body:  "Earnings stack across all four majors. Whoever's got the biggest bank when The Open wraps wins the season. Ties broken by your original-starters total, then by left-on-base.",
+    image: null,
+    placeholder: "Overall standings · season totals",
+  },
+];
+
+function OnboardingModal({ dismissible, onClose }) {
+  const [idx, setIdx] = useState(0);
+  const isLast = idx === ONBOARDING_SLIDES.length - 1;
+  const slide  = ONBOARDING_SLIDES[idx];
+  const touchStartX = React.useRef(null);
+
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchEnd   = (e) => {
+    if (touchStartX.current == null) return;
+    const delta = e.changedTouches[0].clientX - touchStartX.current;
+    if (Math.abs(delta) > 40) {
+      if (delta < 0 && idx < ONBOARDING_SLIDES.length - 1) setIdx(i => i + 1);
+      if (delta > 0 && idx > 0)                            setIdx(i => i - 1);
+    }
+    touchStartX.current = null;
+  };
+
+  // Keyboard arrows
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "ArrowRight" && idx < ONBOARDING_SLIDES.length - 1) setIdx(i => i + 1);
+      if (e.key === "ArrowLeft"  && idx > 0)                            setIdx(i => i - 1);
+      if (e.key === "Escape" && dismissible) onClose();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [idx, dismissible, onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center px-4 py-6 fade-in">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col"
+        onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        {dismissible && (
+          <button onClick={onClose}
+            className="absolute top-3 right-3 z-10 text-dim hover:text-text text-xl leading-none w-8 h-8 flex items-center justify-center bg-white/90 rounded-full shadow-sm">
+            ×
+          </button>
+        )}
+
+        {/* Image area — screenshot or placeholder */}
+        <div className="aspect-[5/3] bg-bg2 border-b border-line flex items-center justify-center text-dim text-xs overflow-hidden">
+          {slide.image
+            ? <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
+            : <div className="flex flex-col items-center gap-1.5 px-4 text-center">
+                <svg viewBox="0 0 24 24" className="w-6 h-6 text-line-2" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="2"/>
+                  <circle cx="8.5" cy="10.5" r="1.5"/>
+                  <path d="M21 17l-5-5-9 9"/>
+                </svg>
+                <span className="italic">{slide.placeholder}</span>
+              </div>
+          }
+        </div>
+
+        {/* Text */}
+        <div className="p-6 sm:p-7 flex flex-col">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-dim mb-2">
+            How OnlyMajors works · {idx + 1}/{ONBOARDING_SLIDES.length}
+          </div>
+          <h2 className="font-bold text-2xl tracking-tight mb-2.5">{slide.title}</h2>
+          <p className="text-muted leading-relaxed text-sm">{slide.body}</p>
+
+          {/* Dots */}
+          <div className="flex items-center justify-center gap-2 mt-6 mb-4">
+            {ONBOARDING_SLIDES.map((_, i) => (
+              <button key={i} onClick={() => setIdx(i)}
+                className="rounded-full transition-all"
+                style={{
+                  width:  i === idx ? "24px" : "8px",
+                  height: "8px",
+                  background: i === idx ? "var(--text)" : "var(--line-2)",
+                }}
+                aria-label={`Slide ${i+1}`} />
+            ))}
+          </div>
+
+          {/* Nav */}
+          <div className="flex items-center gap-2">
+            {idx > 0 ? (
+              <button onClick={() => setIdx(i => i - 1)}
+                className="px-4 py-2.5 text-sm font-semibold text-dim hover:text-text transition-colors">
+                Back
+              </button>
+            ) : <div className="w-12"/>}
+            <div className="flex-1" />
+            {!isLast ? (
+              <button onClick={() => setIdx(i => i + 1)}
+                className="px-5 py-2.5 text-sm font-semibold rounded-lg hover:bg-green/10 transition-colors"
+                style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                Next
+              </button>
+            ) : (
+              <button onClick={onClose}
+                className="px-5 py-2.5 text-sm font-semibold rounded-lg hover:bg-green/10 transition-colors"
+                style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                Get started
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
