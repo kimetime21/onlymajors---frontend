@@ -925,6 +925,21 @@ async function apiLeagueMembers(leagueId = 1) {
   if (!res.ok) throw new Error(`members HTTP ${res.status}`);
   return await res.json();
 }
+async function apiLeagueByCode(code) {
+  const res = await fetch(`${ONLYMAJORS_API}/api/leagues/by-code/${encodeURIComponent(code)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `league lookup HTTP ${res.status}`);
+  return data;   // { league: {id,name,code,...}, members: [...] }
+}
+async function apiCreateLeague({ name, code, teamCount }) {
+  const res = await fetch(`${ONLYMAJORS_API}/api/leagues`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ name, code, teamCount }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `create league HTTP ${res.status}`);
+  return data;   // { league, members }
+}
 
 // Fetches the full field for a major from the backend (which pulls from DataGolf).
 // Returns { count, source, players: [{gid, name, country, dg_id, matched}] }.
@@ -945,39 +960,50 @@ function golferLookup(gid) {
 /* =========================================================================
    PERSISTENCE API HELPERS  (Postgres-backed, with localStorage fallback)
    ========================================================================= */
-async function fetchAllPicks() {
-  const res = await authFetch(`${ONLYMAJORS_API}/api/picks`, { cache: "no-store" });
+// All picks/chat fetchers accept a leagueId so they can target a specific
+// league when the user is in multiple. When omitted, the backend falls back
+// to the user's first-joined league.
+function lqs(leagueId) { return leagueId ? `?leagueId=${encodeURIComponent(leagueId)}` : ""; }
+
+async function fetchAllPicks(leagueId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/picks${lqs(leagueId)}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`/api/picks HTTP ${res.status}`);
   return await res.json();
 }
-async function savePick(teamId, majorId, slot) {
+async function savePick(teamId, majorId, slot, leagueId) {
   const body = {
     starters:        slot?.starters  || [],
     bench:           slot?.bench     || [],
     subs:            slot?.subs      || [],
     submitted:       !!slot?.submitted,
     scorePrediction: slot?.scorePrediction ?? null,
+    leagueId:        leagueId ?? undefined,
   };
-  const res = await authFetch(`${ONLYMAJORS_API}/api/picks/${teamId}/${majorId}`, {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/picks/${teamId}/${majorId}${lqs(leagueId)}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`PUT /api/picks HTTP ${res.status}`);
 }
-async function fetchAllChat() {
-  const res = await authFetch(`${ONLYMAJORS_API}/api/chat`, { cache: "no-store" });
+async function fetchAllChat(leagueId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/chat${lqs(leagueId)}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`/api/chat HTTP ${res.status}`);
   return await res.json();
 }
-async function postChat(teamId, text) {
-  const res = await authFetch(`${ONLYMAJORS_API}/api/chat`, {
+async function postChat(teamId, text, leagueId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/chat${lqs(leagueId)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ teamId, text }),
+    body: JSON.stringify({ teamId, text, leagueId: leagueId ?? undefined }),
   });
   if (!res.ok) throw new Error(`POST /api/chat HTTP ${res.status}`);
   return await res.json();
+}
+async function apiLeaguesSummary() {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/me/leagues-summary`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`leagues-summary HTTP ${res.status}`);
+  return await res.json();   // { leagues: [{ league, myTeam, members, picks }] }
 }
 async function fetchAllProfiles() {
   const res = await authFetch(`${ONLYMAJORS_API}/api/profiles`, { cache: "no-store" });
@@ -1012,9 +1038,9 @@ function App() {
   // Auth state — null means signed out. `user` here is the TEAMS-shaped object
   // (id, name, color, etc.) that the rest of the app expects. We derive it from
   // the server's authenticated user + their league_member team slot.
-  const [user, setUser] = useState(null);
   const [authedUser, setAuthedUser] = useState(null);   // { id, email, displayName } from server
   const [leagues, setLeagues]       = useState([]);     // { id, teamId, teamName, ... }
+  const [activeLeagueId, setActiveLeagueId] = useState(null);   // null = show Hub
   const [authChecking, setAuthChecking] = useState(true);
   const [tab, setTab] = useState("picks");
   // Default selected major: pick the most relevant one based on calendar.
@@ -1033,26 +1059,48 @@ function App() {
     return completed[completed.length - 1]?.id || MAJORS[0].id;
   });
 
-  // Map a /api/me response to the TEAMS-shaped user object the rest of the app uses.
+  // Apply /api/me response. Decides whether to drop into the Hub or skip
+  // straight into the single league the user is in.
   const applyAuthResult = (r) => {
     setAuthedUser(r.user);
-    setLeagues(r.leagues || []);
-    const primary = r.leagues?.[0];
-    if (!primary) { setUser(null); return; }
-    const teamShape = TEAMS.find(t => t.id === primary.teamId) || {};
+    const ls = r.leagues || [];
+    setLeagues(ls);
+    if (ls.length === 0) {
+      setActiveLeagueId(null);
+    } else if (ls.length === 1) {
+      setActiveLeagueId(ls[0].id);   // single-league users skip the hub
+    } else {
+      // Multi-league: prefer the previously-active one (persisted), else hub.
+      let prev = null;
+      try { prev = Number(localStorage.getItem("epga.activeLeagueId")) || null; } catch {}
+      const valid = ls.find(l => l.id === prev);
+      setActiveLeagueId(valid ? valid.id : null);
+    }
+  };
+
+  // Derive the TEAMS-shaped `user` object the rest of the app expects from the
+  // active league. Re-runs whenever activeLeagueId or leagues changes.
+  const user = useMemo(() => {
+    if (!authedUser || !activeLeagueId) return null;
+    const league = leagues.find(l => l.id === activeLeagueId);
+    if (!league) return null;
+    const teamShape = TEAMS.find(t => t.id === league.teamId) || {};
     const merged = {
       ...teamShape,
-      id:   primary.teamId,
-      name: primary.teamName || teamShape.name,
-      color: primary.teamColor || teamShape.color,
-      email: r.user.email,
-      displayName: r.user.displayName,
-      authedUserId: r.user.id,
-      leagueId: primary.id,
+      id:   league.teamId,
+      name: league.teamName || teamShape.name,
+      color: league.teamColor || teamShape.color,
+      email: authedUser.email,
+      displayName: authedUser.displayName,
+      authedUserId: authedUser.id,
+      leagueId: league.id,
     };
-    setUser(merged);
-    try { localStorage.setItem("epga.user", JSON.stringify(merged)); } catch {}
-  };
+    try {
+      localStorage.setItem("epga.user", JSON.stringify(merged));
+      localStorage.setItem("epga.activeLeagueId", String(league.id));
+    } catch {}
+    return merged;
+  }, [authedUser, leagues, activeLeagueId]);
 
   // On mount: if we have a token, hydrate from /api/me.
   useEffect(() => {
@@ -1062,14 +1110,18 @@ function App() {
       .catch(e => {
         console.warn("auth check failed:", e.message);
         setToken(null);
-        setUser(null);
+        setAuthedUser(null);
+        setActiveLeagueId(null);
       })
       .finally(() => setAuthChecking(false));
   }, []);
 
   const signOut = async () => {
     await apiLogout();
-    try { ["epga.user","epga.picks","epga.profiles","epga.chat","epga.token"].forEach(k => localStorage.removeItem(k)); } catch {}
+    try {
+      ["epga.user","epga.picks","epga.profiles","epga.chat","epga.token","epga.activeLeagueId"]
+        .forEach(k => localStorage.removeItem(k));
+    } catch {}
     window.location.reload();
   };
   const viewAs = user?.id;
@@ -1109,12 +1161,13 @@ function App() {
   // Track last-saved-to-server snapshot to diff and save only changed slots.
   const lastSavedPicksRef = useRef(null);
 
-  // Hydrate picks from server on mount. Server is source of truth; localStorage
-  // is just an offline cache for first-paint speed.
+  // Hydrate picks from server. Re-runs when activeLeagueId changes so switching
+  // leagues from the Hub pulls down that league's picks. Server is source of
+  // truth; localStorage is just an offline cache for first-paint speed.
   useEffect(() => {
-    fetchAllPicks().then(server => {
+    if (!activeLeagueId) return;
+    fetchAllPicks(activeLeagueId).then(server => {
       if (server && Object.keys(server).length > 0) {
-        // Merge into the PICKS skeleton so any missing team/major slots still exist.
         const merged = JSON.parse(JSON.stringify(PICKS));
         for (const teamId of Object.keys(server)) {
           merged[teamId] = { ...(merged[teamId] || {}), ...server[teamId] };
@@ -1122,14 +1175,16 @@ function App() {
         setPicksDraft(merged);
         lastSavedPicksRef.current = JSON.parse(JSON.stringify(merged));
       } else {
-        lastSavedPicksRef.current = JSON.parse(JSON.stringify(picksDraft));
+        // Reset to skeleton when entering a fresh league with no picks yet.
+        setPicksDraft(PICKS);
+        lastSavedPicksRef.current = JSON.parse(JSON.stringify(PICKS));
       }
     }).catch(e => {
       console.warn("picks hydrate failed, using local state:", e.message);
       lastSavedPicksRef.current = JSON.parse(JSON.stringify(picksDraft));
     });
   // eslint-disable-next-line
-  }, []);
+  }, [activeLeagueId]);
 
   // Persist picks to localStorage on every change + push changed slots to server (debounced).
   useEffect(() => {
@@ -1142,7 +1197,7 @@ function App() {
         for (const majorId of Object.keys(picksDraft[teamId] || {})) {
           const a = JSON.stringify(picksDraft[teamId][majorId]);
           const b = JSON.stringify(last?.[teamId]?.[majorId]);
-          if (a !== b) promises.push(savePick(teamId, majorId, picksDraft[teamId][majorId]));
+          if (a !== b) promises.push(savePick(teamId, majorId, picksDraft[teamId][majorId], activeLeagueId));
         }
       }
       Promise.allSettled(promises).then(() => {
@@ -1188,22 +1243,24 @@ function App() {
   }, [chatMessages]);
 
   // Hydrate chat from server on mount + poll every 30s for new messages.
+  // Re-runs when activeLeagueId changes so chat is per-league.
   useEffect(() => {
+    if (!activeLeagueId) return;
     let stopped = false;
-    const pull = () => fetchAllChat()
+    const pull = () => fetchAllChat(activeLeagueId)
       .then(server => { if (!stopped && Array.isArray(server)) setChatMessages(server); })
       .catch(e => console.warn("chat hydrate failed:", e.message));
     pull();
     const id = setInterval(pull, 30_000);
     return () => { stopped = true; clearInterval(id); };
-  }, []);
+  }, [activeLeagueId]);
 
   const sendMessage = (text) => {
     if (!text.trim() || !user) return;
     // Optimistic update — show the message immediately, then reconcile with server.
     const optimistic = { id: `tmp-${Date.now()}`, teamId: user.id, text: text.trim(), ts: Date.now() };
     setChatMessages(prev => [...prev, optimistic]);
-    postChat(user.id, text.trim())
+    postChat(user.id, text.trim(), activeLeagueId)
       .then(saved => {
         setChatMessages(prev => prev.map(m => m.id === optimistic.id ? saved : m));
       })
@@ -1276,9 +1333,16 @@ function App() {
         const i = TEAMS.findIndex(t => t.id === tid);
         if (i !== -1) Object.assign(TEAMS[i], overrides);
       }
+      // The user object is derived (useMemo). To pick up the new team name /
+      // color from TEAMS we mutate the matching league entry — that bumps the
+      // `leagues` reference and re-runs the user useMemo.
       if (user) {
         const fresh = TEAMS.find(t => t.id === user.id);
-        if (fresh) setUser({ ...fresh });
+        if (fresh) {
+          setLeagues(ls => ls.map(l => l.teamId === user.id
+            ? { ...l, teamName: fresh.name, teamColor: fresh.color }
+            : l));
+        }
       }
       setProfileVersion(v => v + 1);
     };
@@ -1313,7 +1377,10 @@ function App() {
     if (i === -1) return;
     Object.assign(TEAMS[i], updates);
     const updatedUser = { ...TEAMS[i] };
-    setUser(updatedUser);
+    // user is derived — bump leagues so the useMemo re-runs with new name/color.
+    setLeagues(ls => ls.map(l => l.teamId === user.id
+      ? { ...l, teamName: updatedUser.name, teamColor: updatedUser.color }
+      : l));
     try {
       localStorage.setItem("epga.user", JSON.stringify(updatedUser));
       const profiles = JSON.parse(localStorage.getItem("epga.profiles") || "{}");
@@ -1414,11 +1481,24 @@ function App() {
   }, []);
 
   if (authChecking) return <div className="min-h-screen flex items-center justify-center text-dim text-sm">Loading…</div>;
-  if (!user) return <LoginScreen onAuthed={applyAuthResult} />;
+  if (!authedUser) return <LoginScreen onAuthed={applyAuthResult} />;
+  // Multi-league user with no active selection → show the Hub.
+  if (!activeLeagueId) return (
+    <LeagueHub authedUser={authedUser} leagues={leagues} picks={picksDraft}
+      onEnterLeague={(id) => { setActiveLeagueId(id); setTab("picks"); }}
+      onLeaguesChanged={(nextLeagues, nextActiveId) => {
+        setLeagues(nextLeagues);
+        if (nextActiveId) setActiveLeagueId(nextActiveId);
+      }}
+      onSignOut={signOut} />
+  );
+  if (!user) return <div className="min-h-screen flex items-center justify-center text-dim text-sm">Loading league…</div>;
 
   return (
     <div className="min-h-screen flex flex-col" data-sync={syncToken}>
-      <TopBar user={user} onSignOut={signOut} onSwitchUser={null} onResetPicks={resetPicks} onResetAll={resetAll} onOpenProfile={() => setTab("profile")} onOpenLeague={() => setTab("league")} />
+      <TopBar user={user} onSignOut={signOut} onSwitchUser={null} onResetPicks={resetPicks} onResetAll={resetAll}
+        onOpenProfile={() => setTab("profile")} onOpenLeague={() => setTab("league")}
+        onBackToHub={() => setActiveLeagueId(null)} multiLeague={leagues.length > 1} />
       <TabBar tab={tab} setTab={setTab} />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 fade-in" key={tab}>
         {tab === "picks" && (
@@ -1493,7 +1573,7 @@ function compact(arr, len) { const o = arr.filter(x => x != null); while (o.leng
 /* =========================================================================
    TOP BAR + RUNNING SEASON TOTAL
    ========================================================================= */
-function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague }) {
+function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague }) {
   const viewAs = user.id;
   const liveMajor = MAJORS.find(m => m.status === "live");
   const settled  = MAJORS.filter(m => m.status === "complete").reduce((s, m) => s + teamMajorTotal(viewAs, m.id), 0);
@@ -1515,7 +1595,7 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
             <div className="text-[10px] uppercase tracking-[0.18em] text-dim">OnlyMajors</div>
             <div className="font-bold text-base sm:text-lg truncate">Experts PGA Fantasy <span className="text-muted font-medium">· 2026</span></div>
           </div>
-          <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} />
+          <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} onBackToHub={onBackToHub} multiLeague={multiLeague} />
         </div>
 
         {/* Row 2 — full-width stats strip, even spacing across all four metrics */}
@@ -1553,21 +1633,47 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
    LOGIN SCREEN
    ========================================================================= */
 function LoginScreen({ onAuthed }) {
-  const [mode, setMode] = useState("login");          // 'login' | 'signup'
+  const [mode, setMode] = useState("login");          // 'login' | 'signup' | 'create'
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [teamId, setTeamId] = useState("");
   const [leagueCode, setLeagueCode] = useState("EXPERTS");
+  const [leagueName, setLeagueName] = useState("");    // for "join existing" preview
   const [members, setMembers] = useState([]);
+  const [lookupErr, setLookupErr] = useState("");
+  const [lookupBusy, setLookupBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  // Create-league form state
+  const [newLeagueName, setNewLeagueName] = useState("");
+  const [newLeagueCode, setNewLeagueCode] = useState("");
+  const [newTeamCount, setNewTeamCount] = useState(5);
+  const [createdLeague, setCreatedLeague] = useState(null);  // { league, members } after successful create
 
-  // Load league members so we can show which teams are claimed during signup.
+  // Whenever the user lands on signup, or changes the code, look up that league.
   useEffect(() => {
     if (mode !== "signup") return;
-    apiLeagueMembers(1).then(setMembers).catch(e => console.warn("members:", e.message));
-  }, [mode]);
+    const code = leagueCode.trim().toUpperCase();
+    if (!code) { setMembers([]); setLeagueName(""); setLookupErr(""); return; }
+    let cancelled = false;
+    setLookupBusy(true); setLookupErr("");
+    apiLeagueByCode(code)
+      .then(r => {
+        if (cancelled) return;
+        setMembers(r.members || []);
+        setLeagueName(r.league?.name || "");
+        // If the currently picked team isn't in this league, clear it.
+        if (teamId && !(r.members || []).some(m => m.teamId === teamId)) setTeamId("");
+      })
+      .catch(e => {
+        if (cancelled) return;
+        setMembers([]); setLeagueName(""); setTeamId("");
+        setLookupErr(e.message);
+      })
+      .finally(() => { if (!cancelled) setLookupBusy(false); });
+    return () => { cancelled = true; };
+  }, [mode, leagueCode]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -1585,9 +1691,30 @@ function LoginScreen({ onAuthed }) {
     if (!teamId) { setError("Pick which team you are."); return; }
     setLoading(true); setError("");
     try {
-      const r = await apiSignup({ email, password, displayName, teamId, leagueCode });
+      const r = await apiSignup({
+        email, password, displayName, teamId,
+        leagueCode: leagueCode.trim().toUpperCase(),
+      });
       setToken(r.token);
       onAuthed(r);
+    } catch (err) {
+      setError(err.message);
+    } finally { setLoading(false); }
+  };
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!newLeagueName.trim()) { setError("Give your league a name."); return; }
+    setLoading(true); setError("");
+    try {
+      const r = await apiCreateLeague({
+        name: newLeagueName.trim(),
+        code: newLeagueCode.trim().toUpperCase() || undefined,
+        teamCount: Number(newTeamCount) || 5,
+      });
+      setCreatedLeague(r);
+      // Pre-fill the signup form with the new league's code so the commissioner
+      // can claim team 1 in the same flow.
+      setLeagueCode(r.league.code);
     } catch (err) {
       setError(err.message);
     } finally { setLoading(false); }
@@ -1613,9 +1740,13 @@ function LoginScreen({ onAuthed }) {
               className={`flex-1 text-sm font-semibold py-1.5 rounded-md transition-colors ${mode==="login" ? "bg-white shadow-sm" : "text-dim hover:text-text"}`}>
               Log in
             </button>
-            <button onClick={() => { setMode("signup"); setError(""); }}
+            <button onClick={() => { setMode("signup"); setError(""); setCreatedLeague(null); }}
               className={`flex-1 text-sm font-semibold py-1.5 rounded-md transition-colors ${mode==="signup" ? "bg-white shadow-sm" : "text-dim hover:text-text"}`}>
-              Sign up
+              Join a league
+            </button>
+            <button onClick={() => { setMode("create"); setError(""); }}
+              className={`flex-1 text-sm font-semibold py-1.5 rounded-md transition-colors ${mode==="create" ? "bg-white shadow-sm" : "text-dim hover:text-text"}`}>
+              Start a league
             </button>
           </div>
 
@@ -1625,7 +1756,7 @@ function LoginScreen({ onAuthed }) {
               <AuthField label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" />
               {error && <div className="text-[11px] text-red">{error}</div>}
               <button type="submit" disabled={loading}
-                className="w-full font-semibold bg-green text-bg2 rounded-lg py-2.5 hover:bg-green-2 transition-colors text-sm disabled:opacity-60">
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
                 {loading ? "Signing in…" : "Log in"}
               </button>
             </form>
@@ -1633,6 +1764,23 @@ function LoginScreen({ onAuthed }) {
 
           {mode === "signup" && (
             <form onSubmit={handleSignup} className="space-y-3">
+              {createdLeague && (
+                <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-2 text-[12px] leading-snug" style={{ color: "#0f7a3e" }}>
+                  League <span className="font-semibold">{createdLeague.league.name}</span> is live. Share code <span className="font-mono font-bold">{createdLeague.league.code}</span> with your friends — then claim your team below.
+                </div>
+              )}
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">League code</span>
+                <input type="text" required value={leagueCode}
+                  onChange={e => setLeagueCode(e.target.value.toUpperCase())}
+                  placeholder="Ask your commissioner"
+                  className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
+                <div className="text-[11px] text-dim mt-1 min-h-[14px]">
+                  {lookupBusy && "Looking up league…"}
+                  {!lookupBusy && lookupErr && <span className="text-red">{lookupErr}</span>}
+                  {!lookupBusy && !lookupErr && leagueName && <span>League: <span className="font-medium text-muted">{leagueName}</span></span>}
+                </div>
+              </div>
               <AuthField label="Display name" type="text"     value={displayName} onChange={setDisplayName} placeholder="What your friends call you" />
               <AuthField label="Email"        type="email"    value={email}       onChange={setEmail}       placeholder="you@example.com" />
               <AuthField label="Password"     type="password" value={password}    onChange={setPassword}    placeholder="At least 6 characters" />
@@ -1650,22 +1798,93 @@ function LoginScreen({ onAuthed }) {
                   {claimedTeams.length > 0 && (
                     <div className="text-[10px] text-dim pt-1.5">Already claimed: {claimedTeams.map(m => m.teamName).join(", ")}</div>
                   )}
-                  {unclaimedTeams.length === 0 && (
-                    <div className="text-xs text-dim italic">All teams in this league are claimed. Ask the league owner for a different league code.</div>
+                  {!lookupBusy && !lookupErr && members.length > 0 && unclaimedTeams.length === 0 && (
+                    <div className="text-xs text-dim italic">All teams in this league are claimed. Ask the commissioner to add a slot, or start your own league.</div>
+                  )}
+                  {!lookupBusy && !lookupErr && members.length === 0 && (
+                    <div className="text-xs text-dim italic">Enter a valid league code to see teams.</div>
                   )}
                 </div>
               </div>
               {error && <div className="text-[11px] text-red">{error}</div>}
               <button type="submit" disabled={loading || !teamId}
-                className="w-full font-semibold bg-green text-bg2 rounded-lg py-2.5 hover:bg-green-2 transition-colors text-sm disabled:opacity-60">
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
                 {loading ? "Creating account…" : "Create account & claim team"}
               </button>
             </form>
           )}
+
+          {mode === "create" && !createdLeague && (
+            <form onSubmit={handleCreate} className="space-y-3">
+              <div className="text-[12px] text-muted leading-snug">
+                Spin up a fresh OnlyMajors league. You'll get a shareable code to send to your buddies. The commissioner claims a team after creating the league.
+              </div>
+              <AuthField label="League name" type="text" value={newLeagueName} onChange={setNewLeagueName} placeholder="e.g. The Back Nine" />
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Invite code <span className="text-dim normal-case font-normal tracking-normal">(optional — we'll generate one if blank)</span></span>
+                <input type="text" value={newLeagueCode}
+                  onChange={e => setNewLeagueCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                  placeholder="e.g. BACK9"
+                  maxLength={16}
+                  className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
+              </div>
+              <div>
+                <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Number of teams</span>
+                <div className="flex gap-1">
+                  {[3,4,5,6,8,10,12].map(n => (
+                    <button key={n} type="button" onClick={() => setNewTeamCount(n)}
+                      className={`flex-1 text-sm font-semibold py-2 rounded-md border transition-colors ${newTeamCount===n ? "border-green text-green" : "border-line text-dim hover:border-line-2"}`}
+                      style={newTeamCount===n ? { color: "#0f7a3e", borderColor: "#0f7a3e" } : {}}>
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {error && <div className="text-[11px] text-red">{error}</div>}
+              <button type="submit" disabled={loading}
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                {loading ? "Creating league…" : "Create league"}
+              </button>
+            </form>
+          )}
+
+          {mode === "create" && createdLeague && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#0f7a3e" }}>
+                <div className="font-semibold mb-1">{createdLeague.league.name} is live</div>
+                <div className="text-[12px]">
+                  Share this invite code:
+                </div>
+                <div className="font-mono text-xl font-bold tracking-widest mt-1 mb-1">{createdLeague.league.code}</div>
+                <div className="text-[11px]">
+                  Anyone with the code can claim a team from this league's sign-up page.
+                </div>
+              </div>
+              <button type="button"
+                onClick={() => { setMode("signup"); setError(""); }}
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm hover:bg-green/10"
+                style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                Claim your team
+              </button>
+              <button type="button"
+                onClick={() => { navigator.clipboard?.writeText(createdLeague.league.code); }}
+                className="w-full font-semibold rounded-lg py-2.5 text-sm text-dim hover:text-text transition-colors">
+                Copy code
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="text-center text-[11px] text-dim mt-6">
-          League code: <span className="font-mono text-muted">{leagueCode}</span> · Experts PGA Fantasy
+          {mode === "signup" && leagueName ? (
+            <>League code: <span className="font-mono text-muted">{leagueCode}</span> · {leagueName}</>
+          ) : mode === "signup" ? (
+            <>Type a league code to get started</>
+          ) : mode === "create" ? (
+            <>Starting a new league? You'll be the commissioner.</>
+          ) : (
+            <>Fantasy golf for the four majors</>
+          )}
         </div>
       </div>
     </div>
@@ -1683,9 +1902,380 @@ function AuthField({ label, type, value, onChange, placeholder }) {
 }
 
 /* =========================================================================
+   LEAGUE HUB — landing page for multi-league users. Shows a card per league
+   with picks status, season standing, and live position. CTAs to join + start
+   another league.
+   ========================================================================= */
+function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSignOut }) {
+  const [summary, setSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+  const [action, setAction]   = useState(null);   // null | 'join' | 'create'
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError("");
+    apiLeaguesSummary()
+      .then(r => { if (!cancelled) setSummary(r); })
+      .catch(e => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const refreshSummary = () => {
+    setLoading(true);
+    apiLeaguesSummary()
+      .then(r => setSummary(r))
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  };
+
+  // Determine which major to surface picks status for on the cards.
+  const activeMajor = useMemo(() => {
+    const live = MAJORS.find(m => m.status === "live");
+    if (live) return live;
+    const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
+    if (upcomingOpen) return upcomingOpen;
+    const nextUpcoming = MAJORS.find(m => m.status === "upcoming");
+    if (nextUpcoming) return nextUpcoming;
+    return MAJORS[MAJORS.length - 1];
+  }, []);
+  const liveMajor = MAJORS.find(m => m.status === "live") || null;
+
+  const firstName = (authedUser.displayName || authedUser.email || "").split(/[\s@]/)[0];
+
+  return (
+    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg)" }}>
+      {/* Slim top bar */}
+      <header className="border-b border-line bg-white/70 backdrop-blur-sm">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <OnlyMajorsLogo size={36} full={false} />
+            <span className="font-bold tracking-tight">OnlyMajors</span>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <span className="text-dim hidden sm:inline">{authedUser.email}</span>
+            <button onClick={onSignOut} className="text-dim hover:text-text transition-colors text-xs uppercase tracking-wider font-semibold">
+              Sign out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 fade-in">
+        <div className="mb-6">
+          <h1 className="font-bold text-2xl tracking-tight">Hi{firstName ? `, ${firstName}` : ""}</h1>
+          <p className="text-sm text-muted mt-1">Pick a league to manage your picks.</p>
+        </div>
+
+        {loading && <div className="text-sm text-dim">Loading your leagues…</div>}
+        {error   && <div className="text-sm text-red">Couldn't load leagues: {error}</div>}
+
+        {!loading && summary && (
+          <div className="space-y-3">
+            {summary.leagues.map(entry => (
+              <LeagueHubCard key={entry.league.id} entry={entry}
+                activeMajor={activeMajor} liveMajor={liveMajor}
+                onEnter={() => onEnterLeague(entry.league.id)} />
+            ))}
+            {summary.leagues.length === 0 && (
+              <div className="text-sm text-dim italic py-6 text-center border border-dashed border-line rounded-2xl">
+                You're not in any leagues yet. Start one below.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CTAs */}
+        <div className="mt-8 grid sm:grid-cols-2 gap-3">
+          <button onClick={() => setAction("join")}
+            className="rounded-xl border-2 border-line hover:border-line-2 bg-white px-4 py-3 text-left transition-colors">
+            <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">Already invited?</div>
+            <div className="font-semibold text-sm mt-0.5">Join another league</div>
+          </button>
+          <button onClick={() => setAction("create")}
+            className="rounded-xl border-2 px-4 py-3 text-left transition-colors hover:bg-green/8"
+            style={{ borderColor: "#0f7a3e", color: "#0f7a3e" }}>
+            <div className="text-[10px] uppercase tracking-wider font-semibold opacity-80">Run your own</div>
+            <div className="font-semibold text-sm mt-0.5">Start a new league</div>
+          </button>
+        </div>
+      </main>
+
+      {action && (
+        <LeagueHubActionModal kind={action} onClose={() => setAction(null)}
+          onJoined={(nextLeagueId) => { setAction(null); refreshSummary(); /* let user re-enter at their leisure */ }}
+          onCreated={(league) => { setAction(null); refreshSummary(); }} />
+      )}
+    </div>
+  );
+}
+
+function LeagueHubCard({ entry, activeMajor, liveMajor, onEnter }) {
+  const { league, myTeam, members, picks } = entry;
+
+  // Season standing for this league.
+  const standing = useMemo(() => {
+    const rows = members.map(m => {
+      const total = MAJORS.reduce((s, mm) => s + teamMajorTotal(m.teamId, mm.id, picks), 0);
+      return { teamId: m.teamId, total };
+    }).sort((a, b) => b.total - a.total);
+    const myIdx = rows.findIndex(r => r.teamId === myTeam.teamId);
+    const me    = rows[myIdx] || { total: 0 };
+    return {
+      myRank: myIdx >= 0 ? myIdx + 1 : null,
+      myTotal: me.total,
+      leaderTotal: rows[0]?.total ?? 0,
+      totalTeams: members.filter(m => m.claimed).length,
+      capacity: members.length,
+    };
+  }, [members, picks, myTeam.teamId]);
+
+  // Picks status for the active major.
+  const myPicks = picks?.[myTeam.teamId]?.[activeMajor?.id];
+  const startersFilled = (myPicks?.starters || []).filter(Boolean).length;
+  const benchFilled    = (myPicks?.bench    || []).filter(Boolean).length;
+  const picksSubmitted = !!myPicks?.submitted;
+  const picksOpen      = activeMajor && arePicksOpen(activeMajor);
+  const picksLocked    = activeMajor && activeMajor.status !== "upcoming";
+
+  let picksLabel, picksTone;
+  if (picksLocked) {
+    picksLabel = startersFilled === 0 ? "Did not submit" : (picksSubmitted ? "Submitted · locked" : "In flight · locked");
+    picksTone  = startersFilled === 0 ? "muted" : "ok";
+  } else if (picksOpen) {
+    if (picksSubmitted) { picksLabel = "Submitted"; picksTone = "ok"; }
+    else if (startersFilled > 0) { picksLabel = `Draft · ${startersFilled}/4 picked`; picksTone = "warn"; }
+    else { picksLabel = "Open · not started"; picksTone = "warn"; }
+  } else {
+    picksLabel = `Opens in ${daysUntilPicksOpen(activeMajor)}d`;
+    picksTone  = "muted";
+  }
+
+  // Live position (current rank if there's a live major).
+  const liveStanding = useMemo(() => {
+    if (!liveMajor) return null;
+    const rows = members.map(m => ({
+      teamId: m.teamId,
+      total:  teamMajorTotal(m.teamId, liveMajor.id, picks),
+    })).sort((a, b) => b.total - a.total);
+    const myIdx = rows.findIndex(r => r.teamId === myTeam.teamId);
+    return myIdx >= 0 ? { rank: myIdx + 1, total: rows[myIdx].total } : null;
+  }, [members, picks, myTeam.teamId, liveMajor?.id]);
+
+  const ordinal = (n) => {
+    if (n == null) return "—";
+    const s = ["th","st","nd","rd"], v = n % 100;
+    return n + (s[(v-20)%10] || s[v] || s[0]);
+  };
+
+  return (
+    <button onClick={onEnter}
+      className="w-full text-left rounded-2xl border border-line bg-white hover:border-line-2 transition-colors p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-4 group">
+      {/* Left: league identity + team */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-bold text-lg tracking-tight truncate">{league.name}</span>
+          <span className="text-[10px] uppercase tracking-wider text-dim font-mono">{league.code}</span>
+        </div>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span className="w-3 h-3 rounded-full shrink-0" style={{ background: myTeam.teamColor }}/>
+          <span className="text-sm text-muted">{myTeam.teamName}</span>
+          <span className="text-[11px] text-dim">· {standing.totalTeams}/{standing.capacity} teams</span>
+        </div>
+      </div>
+
+      {/* Middle: stat blurbs */}
+      <div className="grid grid-cols-3 gap-3 sm:gap-4 sm:w-auto w-full">
+        <Stat label={activeMajor?.short || "Picks"} value={picksLabel} tone={picksTone} />
+        <Stat label="Season"
+          value={standing.myRank ? `${ordinal(standing.myRank)} of ${members.length}` : "—"}
+          sub={fmt(standing.myTotal)} />
+        <Stat label={liveMajor ? `${liveMajor.short} live` : "Live"}
+          value={liveStanding ? `${ordinal(liveStanding.rank)}` : "—"}
+          sub={liveStanding ? fmt(liveStanding.total) : (liveMajor ? "" : "No major live")} />
+      </div>
+
+      {/* Right: chevron */}
+      <div className="hidden sm:flex items-center justify-end shrink-0 text-dim group-hover:text-text">
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 6 15 12 9 18"/>
+        </svg>
+      </div>
+    </button>
+  );
+}
+
+function Stat({ label, value, sub, tone }) {
+  const toneColor = tone === "ok" ? "#0f7a3e" : tone === "warn" ? "#b08006" : tone === "muted" ? "var(--dim)" : "var(--text)";
+  return (
+    <div className="min-w-0">
+      <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{label}</div>
+      <div className="text-sm font-semibold truncate" style={{ color: toneColor }}>{value}</div>
+      {sub && <div className="text-[11px] text-dim font-mono truncate">{sub}</div>}
+    </div>
+  );
+}
+
+// Inline modal used by the Hub for both join + create flows. Reuses the same
+// backend endpoints the LoginScreen does. On success it bubbles up so the Hub
+// can refresh its summary.
+function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
+  // Create flow state
+  const [name, setName]         = useState("");
+  const [code, setCode]         = useState("");
+  const [teamCount, setTeamCount] = useState(5);
+  const [createdLeague, setCreatedLeague] = useState(null);
+  // Join flow state
+  const [joinCode, setJoinCode] = useState("");
+  const [lookup, setLookup]     = useState(null);   // { league, members }
+  const [lookupBusy, setLookupBusy] = useState(false);
+  const [teamId, setTeamId]     = useState("");
+  const [busy, setBusy]         = useState(false);
+  const [error, setError]       = useState("");
+
+  // Live lookup when typing a join code
+  useEffect(() => {
+    if (kind !== "join") return;
+    const c = joinCode.trim().toUpperCase();
+    if (!c) { setLookup(null); return; }
+    let cancelled = false;
+    setLookupBusy(true);
+    apiLeagueByCode(c)
+      .then(r => { if (!cancelled) { setLookup(r); setError(""); } })
+      .catch(e => { if (!cancelled) { setLookup(null); setError(e.message); } })
+      .finally(() => { if (!cancelled) setLookupBusy(false); });
+    return () => { cancelled = true; };
+  }, [kind, joinCode]);
+
+  const handleCreate = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) { setError("Give your league a name."); return; }
+    setBusy(true); setError("");
+    try {
+      const r = await apiCreateLeague({
+        name: name.trim(),
+        code: code.trim().toUpperCase() || undefined,
+        teamCount: Number(teamCount) || 5,
+      });
+      setCreatedLeague(r);
+      onCreated?.(r);
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  const handleJoin = async (e) => {
+    e.preventDefault();
+    if (!teamId) { setError("Pick a team to claim."); return; }
+    if (!lookup) { setError("Enter a valid league code."); return; }
+    setBusy(true); setError("");
+    try {
+      // The /api/auth/signup endpoint requires a password — but for already-
+      // signed-in users we need a different path. For now, claim a slot via
+      // a placeholder: post directly to a new endpoint OR have the user log
+      // out + sign up again. v1: we surface a link to "log out and sign up
+      // with this code" since the current backend doesn't have a "claim slot
+      // as existing user" endpoint.
+      setError("Joining an additional league as a signed-in user is coming soon. For now, share this code with someone else and have them sign up, or sign out and create a new account with this code.");
+    } catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center px-4 py-6"
+      onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-5 sm:p-6 fade-in"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-lg">
+            {kind === "create" ? "Start a new league" : "Join a league"}
+          </h3>
+          <button onClick={onClose} className="text-dim hover:text-text text-xl leading-none">×</button>
+        </div>
+
+        {kind === "create" && !createdLeague && (
+          <form onSubmit={handleCreate} className="space-y-3">
+            <AuthField label="League name" type="text" value={name} onChange={setName} placeholder="e.g. The Back Nine" />
+            <div>
+              <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Invite code <span className="text-dim normal-case font-normal tracking-normal">(optional)</span></span>
+              <input type="text" value={code}
+                onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
+                placeholder="e.g. BACK9" maxLength={16}
+                className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
+            </div>
+            <div>
+              <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Number of teams</span>
+              <div className="flex gap-1">
+                {[3,4,5,6,8,10,12].map(n => (
+                  <button key={n} type="button" onClick={() => setTeamCount(n)}
+                    className={`flex-1 text-sm font-semibold py-2 rounded-md border transition-colors ${teamCount===n ? "" : "border-line text-dim hover:border-line-2"}`}
+                    style={teamCount===n ? { color: "#0f7a3e", borderColor: "#0f7a3e" } : {}}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {error && <div className="text-[11px] text-red">{error}</div>}
+            <button type="submit" disabled={busy}
+              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10"
+              style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              {busy ? "Creating…" : "Create league"}
+            </button>
+          </form>
+        )}
+
+        {kind === "create" && createdLeague && (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#0f7a3e" }}>
+              <div className="font-semibold mb-1">{createdLeague.league.name} is live</div>
+              <div className="text-[12px]">Share this invite code:</div>
+              <div className="font-mono text-xl font-bold tracking-widest mt-1">{createdLeague.league.code}</div>
+            </div>
+            <button onClick={() => navigator.clipboard?.writeText(createdLeague.league.code)}
+              className="w-full text-sm text-dim hover:text-text font-semibold py-2">Copy code</button>
+            <button onClick={onClose}
+              className="w-full font-semibold rounded-lg py-2.5 text-sm hover:bg-green/10"
+              style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              Done
+            </button>
+          </div>
+        )}
+
+        {kind === "join" && (
+          <div className="space-y-3">
+            <div>
+              <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">League code</span>
+              <input type="text" value={joinCode}
+                onChange={e => setJoinCode(e.target.value.toUpperCase())}
+                placeholder="Ask your commissioner"
+                className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
+              <div className="text-[11px] text-dim mt-1 min-h-[14px]">
+                {lookupBusy && "Looking up league…"}
+                {!lookupBusy && lookup && <span>League: <span className="font-medium text-muted">{lookup.league.name}</span></span>}
+              </div>
+            </div>
+            {error && <div className="text-[12px] text-muted leading-snug border border-line rounded-lg p-3 bg-bg2">{error}</div>}
+            {!error && (
+              <div className="text-[12px] text-muted leading-snug">
+                Heads up — joining additional leagues from an existing account is on the roadmap. For now, share the code with someone else, or sign out and create a new account using this code to play in a separate league.
+              </div>
+            )}
+            <button onClick={onClose}
+              className="w-full font-semibold rounded-lg py-2.5 text-sm hover:bg-green/10"
+              style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              Close
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================================
    USER MENU (top right) — replaces TeamSelector
    ========================================================================= */
-function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague }) {
+function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
 
@@ -1731,6 +2321,20 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
               <span className="text-dim">Season <span className="font-mono font-semibold text-green">{fmt(teamSeasonTotal(user.id))}</span></span>
             </div>
           </div>
+
+          {/* All leagues (only shown when the user is in more than one) */}
+          {multiLeague && (
+            <button onClick={() => { onBackToHub && onBackToHub(); setOpen(false); }}
+              className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="3" width="5" height="5" rx="1"/>
+                <rect x="9" y="3" width="5" height="5" rx="1"/>
+                <rect x="2" y="10" width="5" height="3" rx="1"/>
+                <rect x="9" y="10" width="5" height="3" rx="1"/>
+              </svg>
+              All leagues
+            </button>
+          )}
 
           {/* Profile settings */}
           <button onClick={() => { onOpenProfile && onOpenProfile(); setOpen(false); }}
@@ -2403,7 +3007,8 @@ function ScorePredictor({ value, onChange, locked }) {
         </div>
       </div>
 
-      {/* Lock-in button — outlined green; pulses ONLY when actively confirming */}
+      {/* Lock-in button — outlined green; pulses ONLY when actively confirming.
+          Settles into a soft green "Locked in" rest state (no gray jump). */}
       {!locked && (
         <div className="mt-4 flex justify-center">
           <button
@@ -2411,19 +3016,23 @@ function ScorePredictor({ value, onChange, locked }) {
             disabled={!draftIsDirty && !justLocked}
             style={
               justLocked
-                ? { color: "#0f7a3e", background: "rgba(15, 122, 62, 0.10)", border: "2px solid #0f7a3e" }
+                ? { color: "#0f7a3e", background: "rgba(15, 122, 62, 0.10)", border: "2px solid #0f7a3e", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
                 : draftIsDirty
-                  ? { color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }
-                  : { color: "rgba(0,0,0,0.35)", background: "transparent", border: "2px solid rgba(0,0,0,0.15)" }
+                  ? { color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
+                  : value != null
+                    ? { color: "rgba(15, 122, 62, 0.65)", background: "transparent", border: "2px solid rgba(15, 122, 62, 0.35)", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
+                    : { color: "rgba(0,0,0,0.35)", background: "transparent", border: "2px solid rgba(0,0,0,0.15)", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
             }
-            className={`relative px-5 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap
+            className={`relative px-5 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap
               ${justLocked ? "score-pulse" : ""}
               ${!draftIsDirty && !justLocked ? "cursor-not-allowed" : "hover:bg-green/10"}`}>
             {justLocked
               ? <>✓ Locked in at <span className="font-mono">{fmtScoreToPar(value)}</span></>
               : draftIsDirty
                 ? <>Lock in <span className="font-mono">{fmtScoreToPar(draftValue)}</span></>
-                : value != null ? "Locked in" : "Pick a number first"}
+                : value != null
+                  ? <>Locked in at <span className="font-mono">{fmtScoreToPar(value)}</span></>
+                  : "Pick a number first"}
           </button>
         </div>
       )}
@@ -2720,8 +3329,10 @@ function Composer({ onSend, user }) {
           className="flex-1 bg-white border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green/30 placeholder-dim text-text"
         />
         <button type="submit" disabled={!text.trim()}
-          className={`font-semibold rounded-lg px-4 py-2 text-sm transition-colors whitespace-nowrap
-            ${text.trim() ? "bg-green text-bg2 hover:bg-green-2" : "bg-black/[0.06] text-dim cursor-not-allowed"}`}>
+          className={`font-semibold rounded-lg px-4 py-2 text-sm transition-colors whitespace-nowrap ${text.trim() ? "hover:bg-green/10" : "cursor-not-allowed"}`}
+          style={text.trim()
+            ? { color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }
+            : { color: "rgba(0,0,0,0.35)", background: "transparent", border: "2px solid rgba(0,0,0,0.15)" }}>
           Send
         </button>
       </div>
@@ -3225,7 +3836,8 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
           </div>
 
           <button onClick={onGotoPicks}
-            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm bg-green text-bg2 hover:bg-green-2 transition-colors score-pulse">
+            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green/10 transition-colors"
+            style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
             Click here to lock in picks
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M13 6l6 6-6 6"/>
@@ -4044,7 +4656,7 @@ function SubInModal({ benchIndex, teamId, majorId, picks, onConfirm, onClose }) 
               <strong>{target.name}</strong> sits out — <strong className="text-green">{bench.name}</strong> takes the slot.
             </div>
             <button onClick={() => onConfirm(selectedIdx)}
-              className="w-full font-semibold bg-green text-bg2 rounded-lg py-2.5 hover:bg-green-2 transition-colors text-sm">
+              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
               Lock it in
             </button>
           </>
@@ -4124,7 +4736,7 @@ function SubOutModal({ starterIndex, teamId, majorId, picks, onConfirm, onClose 
               <strong>{starter.name}</strong> sits out — <strong className="text-green">{incoming.name}</strong> takes the slot.
             </div>
             <button onClick={() => onConfirm(selectedIdx)}
-              className="w-full font-semibold bg-green text-bg2 rounded-lg py-2.5 hover:bg-green-2 transition-colors text-sm">
+              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
               Lock it in
             </button>
           </>
