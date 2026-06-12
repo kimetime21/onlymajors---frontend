@@ -287,7 +287,16 @@ function daysUntilLock(major) {
   return Math.ceil(ms / (1000*60*60*24));
 }
 // Picks open 2 weeks before the first tee time (when the field is essentially set)
-function arePicksOpen(major) { return new Date(major.picksOpenDate) <= SEASON_TODAY; }
+function arePicksOpen(major) {
+  // Dev override: ?preview=usopen (or any major id) treats that major's picks
+  // as already open. Useful for previewing the picks UI before launch date.
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const preview = params.get("preview");
+    if (preview && (preview === major.id || preview === "all")) return true;
+  } catch {}
+  return new Date(major.picksOpenDate) <= SEASON_TODAY;
+}
 function daysUntilPicksOpen(major) {
   const ms = new Date(major.picksOpenDate).getTime() - SEASON_TODAY.getTime();
   return Math.ceil(ms / (1000*60*60*24));
