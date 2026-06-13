@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>OnlyMajors · Fantasy golf for the four majors</title>
-<meta name="description" content="OnlyMajors — fantasy golf for the four majors. Pick four starters + two bench per major, earnings carry over the season." />
+<title>OnlyMajors · Fantasy golf when it counts</title>
+<meta name="description" content="OnlyMajors — fantasy golf when it counts. Pick four starters + two bench per major, earnings carry over the season." />
 <meta property="og:title" content="OnlyMajors" />
-<meta property="og:description" content="Fantasy golf for the four majors. Picks lock at first tee time." />
+<meta property="og:description" content="Fantasy golf when it counts. Picks lock at first tee time." />
 <meta property="og:url" content="https://onlymajors.com" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -370,16 +370,92 @@ const COURSE_INFO = {
 // Empty by default — chat starts clean and fills in as the league actually talks.
 const CHAT_SEED = [];
 
-// --- BUNDLED WEATHER SAMPLE for the live major (PGA 2026 R1–R4) ----------
-// In production this fetches from Open-Meteo: api.open-meteo.com/v1/forecast?lat=...&lng=...
-const WEATHER_SAMPLE = {
-  pga: [
-    { round: "R1", day: "Thu", date: "May 14", hi: 68, lo: 52, precip: 20, wind: 12, code: 2 },  // partly cloudy
-    { round: "R2", day: "Fri", date: "May 15", hi: 65, lo: 48, precip: 30, wind: 18, code: 3 },  // overcast
-    { round: "R3", day: "Sat", date: "May 16", hi: 70, lo: 55, precip: 10, wind: 8,  code: 1 },  // mostly sunny
-    { round: "R4", day: "Sun", date: "May 17", hi: 75, lo: 58, precip: 0,  wind: 10, code: 0 },  // sunny
-  ],
-};
+// --- WEATHER (Open-Meteo) -------------------------------------------------
+// Live per-round forecast fetched from Open-Meteo when we're within a week of
+// first tee time. Module-level in-memory cache with a 1-hour TTL so a card
+// re-render doesn't refetch.
+const WEATHER_CACHE = new Map();
+const WEATHER_TTL_MS = 60 * 60 * 1000;
+
+function degreesToCardinal(deg) {
+  if (deg == null || Number.isNaN(deg)) return "";
+  const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+
+// Fetches a four-entry array (R1..R4) of { round, day, date, hi, lo, precip,
+// wind, windDir, windCardinal, code } for a given major. `rounds` is the
+// major's rounds map { r1, r2, r3, r4 } of ISO timestamps with explicit
+// course-local timezone offsets — we strip the date portion directly to avoid
+// browser-vs-course timezone drift.
+async function fetchOpenMeteoForecast(majorId, lat, lng, rounds) {
+  const cacheKey = `${majorId}:${lat}:${lng}`;
+  const cached = WEATHER_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < WEATHER_TTL_MS) return cached.data;
+
+  const params = new URLSearchParams({
+    latitude:  String(lat),
+    longitude: String(lng),
+    daily:     [
+      "weathercode",
+      "temperature_2m_max",
+      "temperature_2m_min",
+      "precipitation_probability_max",
+      "windspeed_10m_max",
+      "winddirection_10m_dominant",
+    ].join(","),
+    temperature_unit: "fahrenheit",
+    windspeed_unit:   "mph",
+    timezone:         "auto",
+    forecast_days:    "16",
+    past_days:        "5",   // covers Mon/Tue practice days once R1 has teed off
+  });
+  const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+  if (!res.ok) throw new Error(`Open-Meteo HTTP ${res.status}`);
+  const json = await res.json();
+  const d = json.daily || {};
+  const byDate = {};
+  (d.time || []).forEach((date, i) => {
+    byDate[date] = {
+      code:    d.weathercode?.[i],
+      hi:      Math.round(d.temperature_2m_max?.[i]),
+      lo:      Math.round(d.temperature_2m_min?.[i]),
+      precip:  d.precipitation_probability_max?.[i] ?? 0,
+      wind:    Math.round(d.windspeed_10m_max?.[i] ?? 0),
+      windDir: d.winddirection_10m_dominant?.[i] ?? null,
+    };
+  });
+
+  // Tournament week = Mon → Sun (3 practice days before R1 through the
+  // final round). Course softness leading in matters as much as game day
+  // conditions, so we show the whole week.
+  // Date math is in UTC against the course-local date string to avoid the
+  // browser's timezone shifting things over the day boundary.
+  const [y, m, dd] = (rounds.r1 || "").slice(0, 10).split("-").map(Number);
+  if (!y) return [];
+  const r1Utc = Date.UTC(y, m - 1, dd);
+  const labels   = ["Practice","Practice","Practice","R1","R2","R3","R4"];
+  const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const data = [];
+  for (let offset = -3; offset <= 3; offset++) {
+    const dayMs = r1Utc + offset * 86400000;
+    const ymd   = new Date(dayMs).toISOString().slice(0, 10);
+    const idx   = offset + 3;
+    const dt    = new Date(dayMs);
+    const monthDay = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    const f     = byDate[ymd];
+    const isCompetition = labels[idx] !== "Practice";
+    if (!f) { data.push({ round: labels[idx], day: dayNames[idx], date: monthDay, isCompetition, missing: true }); continue; }
+    data.push({
+      round: labels[idx], day: dayNames[idx], date: monthDay, isCompetition,
+      ...f,
+      windCardinal: degreesToCardinal(f.windDir),
+    });
+  }
+
+  WEATHER_CACHE.set(cacheKey, { data, fetchedAt: Date.now() });
+  return data;
+}
 
 // --- FIELDS (entries per major) ------------------------------------------
 const FIELDS = {
@@ -1761,7 +1837,7 @@ function LoginScreen({ onAuthed }) {
         <div className="flex flex-col items-center mb-8">
           <OnlyMajorsLogo size={130} full={true} className="mb-3" />
           <div className="text-[10px] uppercase tracking-[0.2em] text-dim">onlymajors.com</div>
-          <div className="text-sm text-muted mt-1">Fantasy golf for the four majors</div>
+          <div className="text-sm text-muted mt-1">Fantasy golf when it counts</div>
         </div>
 
         <div className="glass rounded-2xl p-6 space-y-4 fade-in">
@@ -1914,7 +1990,7 @@ function LoginScreen({ onAuthed }) {
           ) : mode === "create" ? (
             <>Starting a new league? You'll be the commissioner.</>
           ) : (
-            <>Fantasy golf for the four majors</>
+            <>Fantasy golf when it counts</>
           )}
         </div>
       </div>
@@ -2549,10 +2625,10 @@ const ONBOARDING_SLIDES = [
     placeholder: "Hero shot · brand + standings preview",
   },
   {
-    title: "Pick four. Bench the rest.",
-    body:  "Each major, you draft 4 starters from the field. Everyone else in that field sits on your bench. Picks open Monday of tournament week and lock at the first tee time on Thursday.",
+    title: "Pick four, plus two on the bench",
+    body:  "Each major, you draft 4 starters and 2 bench players from the field. Every player can only be used once per season — your starters, plus any bench player you sub in, are locked from every other major. Picks open Monday of tournament week and lock at the first tee time on Thursday.",
     image: null,
-    placeholder: "Picks tab · 4 starters + bench",
+    placeholder: "Picks tab · 4 starters + 2 bench",
   },
   {
     title: "You earn what they earn",
@@ -2562,13 +2638,13 @@ const ONBOARDING_SLIDES = [
   },
   {
     title: "Subs + the score predictor",
-    body:  "Before each round, swap a starter out for any bench player. Once the round tees off, your lineup locks until the next morning. Lock in a winning-score prediction too — your guess shows up under the live leaderboard.",
+    body:  "Between rounds, you can swap a starter out for one of your bench players. Once the next round tees off, that round's lineup is locked. Lock in a winning-score prediction too — your guess shows up under the live leaderboard.",
     image: null,
     placeholder: "Sub modal · score predictor reel",
   },
   {
     title: "Win the season",
-    body:  "Earnings stack across all four majors. Whoever's got the biggest bank when The Open wraps wins the season. Ties broken by your original-starters total, then by left-on-base.",
+    body:  "Earnings stack across all four majors. Whoever's got the biggest bank when The Open wraps wins the season. Ties broken first by your original-starters total, then by who's closest with their winning-score prediction.",
     image: null,
     placeholder: "Overall standings · season totals",
   },
@@ -2683,7 +2759,7 @@ function Footer() {
   return (
     <footer className="border-t border-line mt-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 text-[11px] text-dim flex flex-wrap gap-3 justify-between">
-        <span><span className="font-semibold text-muted">OnlyMajors</span> · fantasy golf for the four majors · onlymajors.com</span>
+        <span><span className="font-semibold text-muted">OnlyMajors</span> · fantasy golf when it counts · onlymajors.com</span>
         <span className="text-muted">Real 2026 PGA Championship at Aronimink</span>
       </div>
     </footer>
@@ -2976,7 +3052,23 @@ function CourseCard({ major }) {
   if (!info) return null;
   const dOut = daysUntilLock(major);
   const inForecastWindow = dOut <= 7 && dOut >= -4; // tournament-week-ish
-  const bundled = WEATHER_SAMPLE[major.id];
+
+  // Live forecast state — fetched from Open-Meteo when we're in the window.
+  const [forecast,      setForecast]      = useState(null);
+  const [forecastErr,   setForecastErr]   = useState(null);
+  const [forecastLoad,  setForecastLoad]  = useState(false);
+
+  useEffect(() => {
+    if (!inForecastWindow) { setForecast(null); return; }
+    let cancelled = false;
+    setForecastLoad(true);
+    setForecastErr(null);
+    fetchOpenMeteoForecast(major.id, info.coords.lat, info.coords.lng, major.rounds)
+      .then(data => { if (!cancelled) setForecast(data); })
+      .catch(err => { if (!cancelled) setForecastErr(err.message); })
+      .finally(()  => { if (!cancelled) setForecastLoad(false); });
+    return () => { cancelled = true; };
+  }, [major.id, inForecastWindow, info.coords.lat, info.coords.lng]);
 
   return (
     <div className="glass rounded-2xl p-5 space-y-5">
@@ -3016,26 +3108,49 @@ function CourseCard({ major }) {
             ? <span className="text-[10px] uppercase tracking-wider text-dim">via Open-Meteo · {major.city}</span>
             : <span className="text-[10px] uppercase tracking-wider text-dim">{dOut > 0 ? `Tees off in ${dOut} days` : "Tournament complete"}</span>}
         </div>
-        {inForecastWindow && bundled ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {bundled.map((d, i) => (
-              <div key={i} className="bg-black/[0.04] border border-line rounded-lg p-3 text-center">
-                <div className="text-[10px] uppercase tracking-wider text-dim">{d.round}</div>
-                <div className="text-sm font-semibold mt-0.5">{d.day} <span className="text-dim font-normal">{d.date}</span></div>
-                <div className="my-2 flex justify-center"><WeatherIcon code={d.code} /></div>
-                <div className="text-lg font-bold display-num">{d.hi}° <span className="text-dim text-sm font-medium">/ {d.lo}°</span></div>
-                <div className="mt-1 grid grid-cols-2 gap-1 text-[10px] text-muted">
-                  <div>{d.precip}% rain</div>
-                  <div>{d.wind} mph</div>
+        {inForecastWindow && forecast ? (
+          <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+            {forecast.map((d, i) => (
+              <div key={i}
+                className={`border rounded-lg p-2.5 flex items-center sm:flex-col sm:text-center gap-3 sm:gap-0 ${d.isCompetition ? "bg-white border-line-2" : "bg-black/[0.04] border-line"}`}>
+                {/* Label + day (left side on mobile, top on desktop) */}
+                <div className="flex sm:flex-col sm:items-center items-baseline gap-2 sm:gap-0 shrink-0 w-20 sm:w-auto">
+                  <div className={`text-[10px] uppercase tracking-wider font-semibold ${d.isCompetition ? "" : "text-dim"}`}
+                    style={d.isCompetition ? { color: "#0f7a3e" } : {}}>
+                    {d.round}
+                  </div>
+                  <div className="text-sm font-semibold sm:mt-0.5">{d.day} <span className="text-dim font-normal">{d.date}</span></div>
                 </div>
+                {d.missing ? (
+                  <div className="flex-1 sm:my-3 text-[11px] text-dim italic">Outside forecast window</div>
+                ) : (
+                  <>
+                    {/* Icon (middle on mobile, top-block on desktop) */}
+                    <div className="shrink-0 sm:my-2 sm:flex sm:justify-center"><WeatherIcon code={d.code} /></div>
+                    {/* Hi/Lo + rain + wind (right on mobile, stacked on desktop) */}
+                    <div className="flex-1 flex items-baseline gap-3 sm:block sm:flex-none sm:gap-0">
+                      <div className="text-base font-bold display-num">{d.hi}° <span className="text-dim text-xs font-medium">/ {d.lo}°</span></div>
+                      <div className="text-[10px] text-muted sm:mt-1 sm:space-y-0.5">
+                        <div>{d.precip}% rain</div>
+                        <div>{d.wind} mph{d.windCardinal ? ` ${d.windCardinal}` : ""}</div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
           </div>
+        ) : inForecastWindow && forecastErr ? (
+          <div className="bg-black/[0.04] border border-line rounded-lg p-4 text-sm text-muted">
+            Couldn't load the forecast right now ({forecastErr}). We'll retry next time you reload the page.
+          </div>
+        ) : inForecastWindow && forecastLoad ? (
+          <div className="bg-black/[0.04] border border-line rounded-lg p-4 text-sm text-dim">Loading forecast…</div>
         ) : (
           <div className="bg-black/[0.04] border border-line rounded-lg p-4 text-sm text-muted">
             {dOut > 0
-              ? <>Forecast will appear here once we're within a week of first tee time. {major.course} sits at {info.coords.lat.toFixed(2)}°, {info.coords.lng.toFixed(2)}°.</>
-              : <>This tournament has concluded. In production we'd show actual round-by-round conditions captured during play.</>}
+              ? <>Forecast appears here once we're within a week of first tee time. {major.course} sits at {info.coords.lat.toFixed(2)}°, {info.coords.lng.toFixed(2)}°.</>
+              : <>This tournament has concluded.</>}
           </div>
         )}
       </div>
