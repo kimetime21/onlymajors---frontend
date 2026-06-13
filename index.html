@@ -3926,28 +3926,34 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
   const liveMajor    = MAJORS.find(m => m.status === "live");
   const lastComplete = [...MAJORS].reverse().find(m => m.status === "complete");
   const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
-  // Default focus: a live tournament wins, then an upcoming-with-picks-open
-  // (so the countdown hero greets people), then the most recent complete major.
-  const defaultMajor = liveMajor || upcomingOpen || lastComplete || MAJORS[0];
+  // Surface the next upcoming major during the lead-up week (two weeks out)
+  // so the page feels current — even before picks formally open.
+  const upcomingFocus = MAJORS.find(m => m.status === "upcoming" && daysUntilLock(m) <= 14);
+  // Default focus: live → picks-already-open → lead-up-week upcoming → most
+  // recent complete major.
+  const defaultMajor = liveMajor || upcomingOpen || upcomingFocus || lastComplete || MAJORS[0];
   const [viewedMajorId, setViewedMajorId] = useState(defaultMajor.id);
   const viewed = M[viewedMajorId] || defaultMajor;
 
-  // Dropdown options: anything worth looking at. Live + upcoming-with-picks-
-  // open + every complete major. Order: live, upcoming (pre-tournament hero),
-  // then completes in chronological order.
+  // Dropdown options: anything worth looking at — live + upcoming focus +
+  // every complete major. Most-current items first.
   const completeMajors = MAJORS.filter(m => m.status === "complete");
   const switcherOptions = useMemo(() => {
     const list = [];
-    if (liveMajor)    list.push(liveMajor);
-    if (upcomingOpen) list.push(upcomingOpen);
+    if (liveMajor)      list.push(liveMajor);
+    if (upcomingOpen   && !list.some(x => x.id === upcomingOpen.id))   list.push(upcomingOpen);
+    if (upcomingFocus  && !list.some(x => x.id === upcomingFocus.id))  list.push(upcomingFocus);
     for (const m of completeMajors) if (!list.some(x => x.id === m.id)) list.push(m);
     return list;
-  }, [liveMajor?.id, upcomingOpen?.id, completeMajors.map(m => m.id).join(",")]);
+  }, [liveMajor?.id, upcomingOpen?.id, upcomingFocus?.id, completeMajors.map(m => m.id).join(",")]);
   const showSwitcher = switcherOptions.length > 1;
 
   const isLive    = viewed.status === "live";
   const hasData   = Object.keys(EARN[viewed.id] || {}).length > 0;
-  const isPreTour = viewed.status === "upcoming" && arePicksOpen(viewed);
+  // Render the countdown hero for any upcoming major in its lead-up window,
+  // whether picks are formally open yet or not — PicksOpenLiveState below
+  // adapts its copy based on arePicksOpen.
+  const isPreTour = viewed.status === "upcoming" && daysUntilLock(viewed) <= 14;
 
   const rows = useMemo(() => {
     return TEAMS.map(t => {
@@ -4097,16 +4103,21 @@ function ScorePredictionsPanel({ picks, majorId }) {
 }
 
 function PicksOpenLiveState({ major, picks, onGotoPicks }) {
-  // Countdown to first tee
+  // Re-tick once a minute so the countdown stays current without a full reload.
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60_000);
     return () => clearInterval(id);
   }, []);
 
-  const teeTimeMs = new Date(major.firstTeeTime).getTime();
+  const picksOpen = arePicksOpen(major);
+  // Countdown target: first tee once picks are open, otherwise the date picks
+  // unlock. Two phases share the rest of the layout.
+  const targetMs = picksOpen
+    ? new Date(major.firstTeeTime).getTime()
+    : new Date(major.picksOpenDate).getTime();
   const now = Date.now();
-  const diffMs = Math.max(0, teeTimeMs - now);
+  const diffMs = Math.max(0, targetMs - now);
   const days = Math.floor(diffMs / (24*60*60*1000));
   const hours = Math.floor((diffMs % (24*60*60*1000)) / (60*60*1000));
   const minutes = Math.floor((diffMs % (60*60*1000)) / (60*1000));
@@ -4125,14 +4136,18 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
         <div className="relative p-6 sm:p-8">
           <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-dim mb-3">
             <span className="inline-flex items-center gap-1.5">
-              <span className="live-dot w-1.5 h-1.5 bg-green rounded-full inline-block"/>
-              Picks are open
+              <span className={`live-dot w-1.5 h-1.5 rounded-full inline-block ${picksOpen ? "bg-green" : "bg-gold"}`}/>
+              {picksOpen ? "Picks are open" : "Picks open soon"}
             </span>
             <span>·</span>
             <span>{major.name}</span>
           </div>
-          <div className="font-bold text-2xl sm:text-3xl">Picks lock at first tee</div>
-          <div className="text-sm text-muted mt-1">{major.teeTimeLabel}</div>
+          <div className="font-bold text-2xl sm:text-3xl">
+            {picksOpen ? "Picks lock at first tee" : `Picks open ${major.picksOpenLabel || ""}`.trim()}
+          </div>
+          <div className="text-sm text-muted mt-1">
+            {picksOpen ? major.teeTimeLabel : `First tee ${major.teeTimeLabel}`}
+          </div>
 
           <div className="mt-5 grid grid-cols-3 gap-3 max-w-md">
             <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
