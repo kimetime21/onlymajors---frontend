@@ -1034,12 +1034,12 @@ async function apiLeagueByCode(code) {
   if (!res.ok) throw new Error(data.error || `league lookup HTTP ${res.status}`);
   return data;   // { league: {id,name,code,...}, members: [...] }
 }
-async function apiCreateLeague({ name, code, visibility }) {
+async function apiCreateLeague({ name, code, visibility, leagueType, includedMajors }) {
   // Use authFetch so a signed-in caller has the league auto-claimed for them
   // on the server side. Anonymous callers (e.g. login screen) work fine too.
   const res = await authFetch(`${ONLYMAJORS_API}/api/leagues`, {
     method: "POST", headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ name, code, visibility }),
+    body: JSON.stringify({ name, code, visibility, leagueType, includedMajors }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `create league HTTP ${res.status}`);
@@ -2091,14 +2091,36 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
   const [error, setError]     = useState("");
   const [action, setAction]   = useState(null);   // null | 'join' | 'create'
 
+  // Sync summary → App's leagues state so navigation knows about new leagues
+  // that were just created/joined from inside the Hub.
+  const syncUp = (r) => {
+    if (!onLeaguesChanged) return;
+    const transformed = (r?.leagues || []).map(e => ({
+      id:             Number(e.league.id),
+      name:           e.league.name,
+      inviteCode:     e.league.code,
+      format:         e.league.format,
+      scope:          e.league.scope,
+      majorId:        e.league.majorId,
+      memberModel:    e.league.memberModel,
+      visibility:     e.league.visibility,
+      commissionerId: e.league.commissionerId,
+      teamId:         e.myTeam?.teamId,
+      teamName:       e.myTeam?.teamName,
+      teamColor:      e.myTeam?.teamColor,
+    }));
+    onLeaguesChanged(transformed);
+  };
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true); setError("");
     apiLeaguesSummary()
-      .then(r => { if (!cancelled) setSummary(r); })
+      .then(r => { if (!cancelled) { setSummary(r); syncUp(r); } })
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Once we have the summary, fetch each league's archive in parallel so we
@@ -2125,7 +2147,7 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
   const refreshSummary = () => {
     setLoading(true);
     apiLeaguesSummary()
-      .then(r => setSummary(r))
+      .then(r => { setSummary(r); syncUp(r); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   };
@@ -3051,6 +3073,8 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
   const [name, setName]         = useState("");
   const [code, setCode]         = useState("");
   const [visibility, setVisibility] = useState("public");
+  const [leagueType, setLeagueType] = useState("all_four");   // single_major | remaining_majors | all_four | four_plus_one
+  const [singleMajor, setSingleMajor] = useState(null);
   const [createdLeague, setCreatedLeague] = useState(null);
   // Join flow state
   const [joinCode, setJoinCode] = useState("");
@@ -3079,10 +3103,17 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
     if (!name.trim()) { setError("Give your league a name."); return; }
     setBusy(true); setError("");
     try {
+      // Derive includedMajors from the chosen type. "remaining_majors" pulls
+      // upcoming majors at creation time. "single_major" uses the picked one.
+      let includedMajors;
+      if (leagueType === "single_major")        includedMajors = singleMajor ? [singleMajor] : ["masters","pga","usopen","open"];
+      else if (leagueType === "remaining_majors") includedMajors = MAJORS.filter(m => m.status === "upcoming").map(m => m.id);
+      else if (leagueType === "four_plus_one")    includedMajors = ["masters","pga","usopen","open","players"];
+      else                                         includedMajors = ["masters","pga","usopen","open"];
       const r = await apiCreateLeague({
         name: name.trim(),
         code: code.trim().toUpperCase() || undefined,
-        visibility,
+        visibility, leagueType, includedMajors,
       });
       setCreatedLeague(r);
       onCreated?.(r);
@@ -3125,6 +3156,58 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
                 placeholder="e.g. BACK9" maxLength={16}
                 className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
             </div>
+            <div>
+              <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">League type</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => setLeagueType("single_major")}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="single_major" ? "" : "border-line text-dim hover:border-line-2"}`}
+                  style={leagueType==="single_major" ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
+                  <div className="text-[13px] font-semibold">Single major</div>
+                  <div className="text-[11px] text-dim mt-0.5">Pick one tournament.</div>
+                </button>
+                <button type="button" onClick={() => setLeagueType("remaining_majors")}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="remaining_majors" ? "" : "border-line text-dim hover:border-line-2"}`}
+                  style={leagueType==="remaining_majors" ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
+                  <div className="text-[13px] font-semibold">Remaining majors</div>
+                  <div className="text-[11px] text-dim mt-0.5">Only the ones still ahead.</div>
+                </button>
+                <button type="button" onClick={() => setLeagueType("all_four")}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="all_four" ? "" : "border-line text-dim hover:border-line-2"}`}
+                  style={leagueType==="all_four" ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
+                  <div className="text-[13px] font-semibold">All four majors</div>
+                  <div className="text-[11px] text-dim mt-0.5">Masters, PGA, U.S. Open, The Open.</div>
+                </button>
+                <button type="button" onClick={() => setLeagueType("four_plus_one")}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="four_plus_one" ? "" : "border-line text-dim hover:border-line-2"}`}
+                  style={leagueType==="four_plus_one" ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
+                  <div className="text-[13px] font-semibold">Four + one</div>
+                  <div className="text-[11px] text-dim mt-0.5">All four majors plus The Players.</div>
+                </button>
+              </div>
+              {leagueType === "single_major" && (
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {MAJORS.map(m => (
+                    <button key={m.id} type="button" onClick={() => setSingleMajor(m.id)}
+                      className={`rounded-md border px-3 py-2 text-left transition-colors text-[13px] ${singleMajor===m.id ? "" : "border-line text-dim hover:border-line-2"}`}
+                      style={singleMajor===m.id ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
+                      <div className="font-semibold">{m.short}</div>
+                      <div className="text-[11px] text-dim mt-0.5">{m.start}–{m.end}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {leagueType === "remaining_majors" && (
+                <div className="text-[11px] text-dim mt-2">
+                  Will include: {MAJORS.filter(m => m.status === "upcoming").map(m => m.short).join(", ") || "no upcoming majors"}.
+                </div>
+              )}
+              {leagueType === "four_plus_one" && (
+                <div className="text-[11px] text-dim mt-2">
+                  Includes The Players Tournament — scoring support is coming soon.
+                </div>
+              )}
+            </div>
+
             <div>
               <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">Who can join?</span>
               <div className="grid grid-cols-2 gap-2">
