@@ -3923,23 +3923,31 @@ function EmptyLiveState({ major }) {
 }
 
 function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks }) {
-  const liveMajor = MAJORS.find(m => m.status === "live");
+  const liveMajor    = MAJORS.find(m => m.status === "live");
   const lastComplete = [...MAJORS].reverse().find(m => m.status === "complete");
   const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
-  const defaultMajor = liveMajor || lastComplete || MAJORS[0];
-  // useState must be called unconditionally — keep it here even when we end up
-  // rendering the pre-tournament hero below.
+  // Default focus: a live tournament wins, then an upcoming-with-picks-open
+  // (so the countdown hero greets people), then the most recent complete major.
+  const defaultMajor = liveMajor || upcomingOpen || lastComplete || MAJORS[0];
   const [viewedMajorId, setViewedMajorId] = useState(defaultMajor.id);
   const viewed = M[viewedMajorId] || defaultMajor;
 
-  // Pre-tournament state: picks are open for an upcoming major but the
-  // tournament hasn't teed off yet. Show the "picks open" hero instead of
-  // last week's results so friends know what's about to happen.
-  if (!liveMajor && upcomingOpen) {
-    return <PicksOpenLiveState major={upcomingOpen} picks={picks} onGotoPicks={onGotoPicks} />;
-  }
-  const isLive = viewed.status === "live";
-  const hasData = Object.keys(EARN[viewed.id] || {}).length > 0;
+  // Dropdown options: anything worth looking at. Live + upcoming-with-picks-
+  // open + every complete major. Order: live, upcoming (pre-tournament hero),
+  // then completes in chronological order.
+  const completeMajors = MAJORS.filter(m => m.status === "complete");
+  const switcherOptions = useMemo(() => {
+    const list = [];
+    if (liveMajor)    list.push(liveMajor);
+    if (upcomingOpen) list.push(upcomingOpen);
+    for (const m of completeMajors) if (!list.some(x => x.id === m.id)) list.push(m);
+    return list;
+  }, [liveMajor?.id, upcomingOpen?.id, completeMajors.map(m => m.id).join(",")]);
+  const showSwitcher = switcherOptions.length > 1;
+
+  const isLive    = viewed.status === "live";
+  const hasData   = Object.keys(EARN[viewed.id] || {}).length > 0;
+  const isPreTour = viewed.status === "upcoming" && arePicksOpen(viewed);
 
   const rows = useMemo(() => {
     return TEAMS.map(t => {
@@ -3956,80 +3964,79 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
       };
     }).sort(compareTeamsByMajor);
   }, [picks, viewed.id, lastUpdated]);
-
   const leader = rows[0];
-  const completeMajors = MAJORS.filter(m => m.status === "complete");
-  const showSwitcher = (liveMajor && completeMajors.length > 0) || completeMajors.length > 1;
-
-  if (!hasData) {
-    return (
-      <div className="space-y-6">
-        <div className="flex justify-end -mt-2">
-          <SyncBar status={syncStatus} message={syncMessage} lastUpdated={lastUpdated} onRefresh={onRefresh} />
-        </div>
-        <EmptyLiveState major={viewed} />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
-      {/* Top bar — sync indicator (live only) + major switcher (when other majors exist) */}
-      <div className="flex items-center justify-between flex-wrap gap-2 -mt-2">
-        {showSwitcher ? (
-          <LiveMajorSwitcher
-            viewedMajorId={viewedMajorId} setViewedMajorId={setViewedMajorId}
-            liveMajor={liveMajor} completeMajors={completeMajors} />
-        ) : <span />}
-        {isLive && <SyncBar status={syncStatus} lastUpdated={lastUpdated} onRefresh={onRefresh} />}
-      </div>
+      {/* Sync bar — its own row so the dropdown can be full-width below */}
+      {isLive && (
+        <div className="flex justify-end -mt-2">
+          <SyncBar status={syncStatus} lastUpdated={lastUpdated} onRefresh={onRefresh} />
+        </div>
+      )}
 
-      {/* Hero card */}
-      <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${viewed.scene}`}>
-        <div className="absolute inset-0 dot-grid opacity-40"/>
-        <div className="relative p-5 sm:p-6">
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-dim">
-            {isLive ? (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="relative inline-block w-2 h-2"><span className="absolute inset-0 bg-red-400 rounded-full live-dot"/><span className="absolute inset-0 bg-red-400 rounded-full opacity-50 live-glow"/></span>
-                Live now
-              </span>
-            ) : (
-              <span className="font-semibold text-gold">Past results</span>
-            )}
-            <span>·</span>
-            <span>{viewed.name}</span>
-            {isLive && <><span>·</span><span>R{viewed.currentRound}</span></>}
-          </div>
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-5 items-end">
-            <div className="sm:col-span-2">
-              <div className="text-[10px] uppercase tracking-wider text-dim">{isLive ? "Leading the major" : "Won the major"}</div>
-              <div className="flex items-center gap-3 mt-2">
-                <TeamBadge team={leader.team} size="xl" />
-                <div>
-                  <div className="text-2xl sm:text-3xl font-bold">{leader.team.name}</div>
-                  <div className="text-sm text-muted">{leader.team.owner}</div>
+      {/* Major selector — always visible when there's more than one option */}
+      {showSwitcher && (
+        <LiveMajorSwitcher
+          viewedMajorId={viewedMajorId} setViewedMajorId={setViewedMajorId}
+          options={switcherOptions} picks={picks} />
+      )}
+
+      {/* Body — pre-tournament hero, empty state, or full leaderboard */}
+      {isPreTour ? (
+        <PicksOpenLiveState major={viewed} picks={picks} onGotoPicks={onGotoPicks} />
+      ) : !hasData ? (
+        <EmptyLiveState major={viewed} />
+      ) : (
+        <>
+          {/* Hero card */}
+          <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${viewed.scene}`}>
+            <div className="absolute inset-0 dot-grid opacity-40"/>
+            <div className="relative p-5 sm:p-6">
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-dim">
+                {isLive ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="relative inline-block w-2 h-2"><span className="absolute inset-0 bg-red-400 rounded-full live-dot"/><span className="absolute inset-0 bg-red-400 rounded-full opacity-50 live-glow"/></span>
+                    Live now
+                  </span>
+                ) : (
+                  <span className="font-semibold text-gold">Past results</span>
+                )}
+                <span>·</span>
+                <span>{viewed.name}</span>
+                {isLive && <><span>·</span><span>R{viewed.currentRound}</span></>}
+              </div>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-5 items-end">
+                <div className="sm:col-span-2">
+                  <div className="text-[10px] uppercase tracking-wider text-dim">{isLive ? "Leading the major" : "Won the major"}</div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <TeamBadge team={leader.team} size="xl" />
+                    <div>
+                      <div className="text-2xl sm:text-3xl font-bold">{leader.team.name}</div>
+                      <div className="text-sm text-muted">{leader.team.owner}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wider text-dim">{isLive ? "Projected" : "Final earnings"}</div>
+                  <div className="display-num font-bold text-3xl sm:text-4xl shimmer-text">{fmtFull(leader.total)}</div>
+                  <div className="text-xs text-green mt-1">+{fmt(leader.total - (rows[1]?.total ?? 0))} {isLive ? "ahead" : "margin"}</div>
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-dim">{isLive ? "Projected" : "Final earnings"}</div>
-              <div className="display-num font-bold text-3xl sm:text-4xl shimmer-text">{fmtFull(leader.total)}</div>
-              <div className="text-xs text-green mt-1">+{fmt(leader.total - (rows[1]?.total ?? 0))} {isLive ? "ahead" : "margin"}</div>
-            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Team rows */}
-      <div className="space-y-2.5">
-        {rows.map((row, idx) => (
-          <LiveTeamRow key={row.team.id} row={row} rank={idx+1} majorId={viewed.id} leader={rows[0].total} />
-        ))}
-      </div>
+          {/* Team rows */}
+          <div className="space-y-2.5">
+            {rows.map((row, idx) => (
+              <LiveTeamRow key={row.team.id} row={row} rank={idx+1} majorId={viewed.id} leader={rows[0].total} />
+            ))}
+          </div>
 
-      {/* Score Predictions */}
-      <ScorePredictionsPanel picks={picks} majorId={viewed.id} />
+          {/* Score Predictions */}
+          <ScorePredictionsPanel picks={picks} majorId={viewed.id} />
+        </>
+      )}
     </div>
   );
 }
@@ -4176,47 +4183,92 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
   );
 }
 
-function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, liveMajor, completeMajors }) {
+// Picks-style dropdown — full-width card showing the viewed major, with a
+// rich list of all majors you can switch between (live + complete + upcoming-
+// with-picks-open). Mirrors the design of MajorSelectorDropdown on the Picks
+// tab so the two tabs feel like one app.
+function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
   const viewed = M[viewedMajorId];
-  const isViewingLive = liveMajor && liveMajor.id === viewedMajorId;
-  const options = [
-    ...(liveMajor ? [{ ...liveMajor, isLive: true }] : []),
-    ...completeMajors.map(m => ({ ...m, isLive: false })),
-  ];
+  const others = options.filter(m => m.id !== viewedMajorId);
+
+  // Leader/winner summary for a major (used as the right-side accent).
+  const leaderFor = (mid) => {
+    const rows = TEAMS.map(t => ({
+      team: t,
+      total: teamMajorTotal(t.id, mid, picks),
+      originalTotal: teamMajorOriginalTotal(t.id, mid),
+      lob: teamMajorLOB(t.id, mid, picks),
+    })).sort(compareTeamsByMajor);
+    return rows[0];
+  };
+  const accentLabel = (m) => m.status === "live" ? "Leading" : m.status === "complete" ? "Winner" : null;
+  const leadInfo = (m) => {
+    const label = accentLabel(m);
+    if (!label) return null;
+    const l = leaderFor(m.id);
+    if (!l || l.total <= 0) return null;
+    return { label, name: l.team.name };
+  };
+
+  const Row = ({ m, sel }) => {
+    const li = leadInfo(m);
+    return (
+      <button onClick={() => { setViewedMajorId(m.id); setOpen(false); }}
+        className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${sel ? "bg-green/8" : "hover:bg-black/[0.03]"}`}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">{m.name}</span>
+            <StatusBadge status={m.status} />
+          </div>
+          <div className="text-[11px] text-dim mt-0.5">{m.start}–{m.end} · {m.course}</div>
+        </div>
+        {li && (
+          <div className="text-right shrink-0 leading-tight">
+            <div className="text-[10px] uppercase tracking-wider text-dim">{li.label}</div>
+            <div className="text-xs font-semibold text-green truncate max-w-[120px]" style={{ color: "#0f7a3e" }}>{li.name}</div>
+          </div>
+        )}
+      </button>
+    );
+  };
+
+  const currentLi = leadInfo(viewed);
 
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg border bg-white transition-colors text-sm ${open ? "border-green/40" : "border-line-2 hover:border-line-2"}`}>
-        {isViewingLive && <span className="live-dot w-1.5 h-1.5 bg-red-400 rounded-full inline-block"/>}
-        <span className="font-semibold">{viewed.name}</span>
-        <span className="text-[10px] uppercase tracking-wider text-dim">{isViewingLive ? "live" : "past"}</span>
-        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        className={`w-full text-left rounded-xl px-4 py-3 transition-all border bg-white flex items-center gap-3 ${open ? "border-green/40 glow-green" : "border-line-2 hover:border-line-2"}`}>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold text-base sm:text-lg truncate">{viewed.name}</span>
+            <StatusBadge status={viewed.status} />
+          </div>
+          <div className="text-xs text-dim mt-0.5">{viewed.start}–{viewed.end} · {viewed.course}</div>
+        </div>
+        {currentLi && (
+          <div className="text-right shrink-0 leading-tight hidden sm:block">
+            <div className="text-[10px] uppercase tracking-wider text-dim">{currentLi.label}</div>
+            <div className="font-semibold text-sm truncate max-w-[140px]" style={{ color: "#0f7a3e" }}>{currentLi.name}</div>
+          </div>
+        )}
+        <svg viewBox="0 0 24 24" className={`w-4 h-4 text-dim shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9"/>
         </svg>
       </button>
       {open && (
-        <div className="absolute left-0 mt-1.5 min-w-[220px] z-40 bg-white border border-line-2 rounded-xl shadow-lg overflow-hidden fade-in">
-          {options.map(m => {
-            const sel = m.id === viewedMajorId;
-            return (
-              <button key={m.id} onClick={() => { setViewedMajorId(m.id); setOpen(false); }}
-                className={`w-full text-left flex items-center gap-2 px-3 py-2 text-sm transition-colors ${sel ? "bg-green/8" : "hover:bg-black/[0.03]"}`}>
-                {m.isLive && <span className="live-dot w-1.5 h-1.5 bg-red-400 rounded-full inline-block"/>}
-                <span className="flex-1 font-medium">{m.name}</span>
-                <span className="text-[10px] uppercase tracking-wider text-dim">{m.isLive ? "live" : "past"}</span>
-              </button>
-            );
-          })}
+        <div className="absolute z-40 left-0 right-0 mt-1.5 bg-white border border-line-2 rounded-xl shadow-lg overflow-hidden fade-in">
+          {others.map(m => <Row key={m.id} m={m} sel={false} />)}
         </div>
       )}
     </div>
