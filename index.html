@@ -37,6 +37,8 @@
     --red:     #b81d1d;
   }
   html, body {
+    /* +15% global font-size bump — all rem-based Tailwind text utilities scale */
+    font-size: 18.48px;
     background:
       radial-gradient(ellipse 80% 60% at 12% 0%, rgba(43, 69, 53,0.06), transparent 60%),
       radial-gradient(ellipse 60% 50% at 88% 8%, rgba(166,121,35,0.05), transparent 60%),
@@ -785,8 +787,8 @@ function playedGolfers(teamId, picks = PICKS) {
 
 function TeamBadge({ team, size = "md" }) {
   const sizes = {
-    xs: "w-6 h-6 text-[9px]",
-    sm: "w-7 h-7 text-[10px]",
+    xs: "w-6 h-6 text-[10px]",
+    sm: "w-7 h-7 text-[11px]",
     md: "w-9 h-9 text-xs",
     lg: "w-12 h-12 text-sm",
     xl: "w-16 h-16 text-lg",
@@ -808,22 +810,22 @@ function TeamBadge({ team, size = "md" }) {
 }
 
 function CountryCode({ code, className = "" }) {
-  return <span className={`text-[10px] font-mono font-semibold text-dim tracking-wider ${className}`}>{code}</span>;
+  return <span className={`text-[11px] font-mono font-semibold text-dim tracking-wider ${className}`}>{code}</span>;
 }
 
 function StatusBadge({ status }) {
-  if (status === "complete") return <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded glass-2 text-muted">Final</span>;
-  if (status === "live")     return <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-red-500/15 text-red border border-red-500/30 inline-flex items-center gap-1"><span className="live-dot w-1.5 h-1.5 bg-red-400 rounded-full"/>Live</span>;
-  return <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-green/10 text-green border border-green/30">Upcoming</span>;
+  if (status === "complete") return <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded glass-2 text-muted">Final</span>;
+  if (status === "live")     return <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-red-500/15 text-red border border-red-500/30 inline-flex items-center gap-1"><span className="live-dot w-1.5 h-1.5 bg-red-400 rounded-full"/>Live</span>;
+  return <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-green/10 text-green border border-green/30">Upcoming</span>;
 }
 
 function ScorePill({ status, position, score }) {
-  if (status === "mc")  return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white text-dim">MC</span>;
-  if (status === "wd")  return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">WD</span>;
-  if (status === "dfl") return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">DFL</span>;
+  if (status === "mc")  return <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-white text-dim">MC</span>;
+  if (status === "wd")  return <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300">WD</span>;
+  if (status === "dfl") return <span className="text-[11px] font-bold px-1.5 py-0.5 rounded bg-red-500/20 text-red-300">DFL</span>;
   const isLeader = position === "1" || position === "T1";
   return (
-    <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${isLeader ? "bg-gold/20 text-gold border border-gold/40" : "bg-white text-muted"}`}>
+    <span className={`text-[11px] font-bold font-mono px-1.5 py-0.5 rounded ${isLeader ? "bg-gold/20 text-gold border border-gold/40" : "bg-white text-muted"}`}>
       {position}
     </span>
   );
@@ -1730,7 +1732,7 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
             className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-80 transition-opacity focus:outline-none rounded-lg">
             <OnlyMajorsLogo size={40} className="shrink-0" />
             <div className="leading-tight min-w-0 flex-1">
-              <div className="text-[10px] uppercase tracking-[0.18em] text-dim">OnlyMajors</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-dim">OnlyMajors</div>
               <div className="font-bold text-base sm:text-lg truncate">Experts PGA Fantasy <span className="text-muted font-medium">· 2026</span></div>
             </div>
           </button>
@@ -1740,11 +1742,11 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
         {/* Row 2 — full-width stats strip, even spacing across all four metrics */}
         <div className="mt-3 glass rounded-xl px-4 py-2.5 grid grid-cols-2 sm:grid-cols-4 gap-3 items-center">
           <div className="leading-tight">
-            <div className="text-[10px] uppercase tracking-wider text-dim">Season Total</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">Season Total</div>
             <div className="display-num font-bold text-lg sm:text-xl">{fmtFull(total)}</div>
           </div>
           <div className="leading-tight sm:border-l sm:border-line sm:pl-3">
-            <div className="text-[10px] uppercase tracking-wider text-dim flex items-center gap-1">
+            <div className="text-[11px] uppercase tracking-wider text-dim flex items-center gap-1">
               {liveMajor && <span className="live-dot w-1.5 h-1.5 bg-red-400 rounded-full inline-block"/>}
               {liveMajor ? "Live add" : "Live"}
             </div>
@@ -1753,11 +1755,11 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
             </div>
           </div>
           <div className="leading-tight border-l border-line pl-3">
-            <div className="text-[10px] uppercase tracking-wider text-dim">Rank</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">Rank</div>
             <div className={`display-num font-bold text-base ${rank === 1 ? "text-gold" : "text-text"}`}>#{rank}</div>
           </div>
           <div className="leading-tight border-l border-line pl-3">
-            <div className="text-[10px] uppercase tracking-wider text-dim">{rank === 1 ? "Lead" : "Behind"}</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">{rank === 1 ? "Lead" : "Behind"}</div>
             <div className={`display-num font-semibold text-base ${rank===1 ? "text-gold" : "text-muted"}`}>
               {rank === 1 ? "+" + fmt(total - (sorted[1]?.total ?? 0)) : fmt(behind)}
             </div>
@@ -1868,7 +1870,7 @@ function LoginScreen({ onAuthed }) {
         {/* Logo + brand */}
         <div className="flex flex-col items-center mb-8">
           <OnlyMajorsLogo size={130} full={true} className="mb-3" />
-          <div className="text-[10px] uppercase tracking-[0.2em] text-dim">onlymajors.com</div>
+          <div className="text-[11px] uppercase tracking-[0.2em] text-dim">onlymajors.com</div>
           <div className="text-sm text-muted mt-1">Fantasy golf when it counts</div>
         </div>
 
@@ -1893,7 +1895,7 @@ function LoginScreen({ onAuthed }) {
             <form onSubmit={handleLogin} className="space-y-3">
               <AuthField label="Email"    type="email"    value={email}    onChange={setEmail}    placeholder="you@example.com" />
               <AuthField label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" />
-              {error && <div className="text-[11px] text-red">{error}</div>}
+              {error && <div className="text-[12px] text-red">{error}</div>}
               <button type="submit" disabled={loading}
                 className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
                 {loading ? "Signing in…" : "Log in"}
@@ -1904,17 +1906,17 @@ function LoginScreen({ onAuthed }) {
           {mode === "signup" && (
             <form onSubmit={handleSignup} className="space-y-3">
               {createdLeague && (
-                <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-2 text-[12px] leading-snug" style={{ color: "#2b4535" }}>
+                <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-2 text-[13px] leading-snug" style={{ color: "#2b4535" }}>
                   League <span className="font-semibold">{createdLeague.league.name}</span> is live. Share code <span className="font-mono font-bold">{createdLeague.league.code}</span> with your friends — then claim your team below.
                 </div>
               )}
               <div>
-                <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">League code</span>
+                <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">League code</span>
                 <input type="text" required value={leagueCode}
                   onChange={e => setLeagueCode(e.target.value.toUpperCase())}
                   placeholder="Ask your commissioner"
                   className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
-                <div className="text-[11px] text-dim mt-1 min-h-[14px]">
+                <div className="text-[12px] text-dim mt-1 min-h-[14px]">
                   {lookupBusy && "Looking up league…"}
                   {!lookupBusy && lookupErr && <span className="text-red">{lookupErr}</span>}
                   {!lookupBusy && !lookupErr && leagueName && <span>League: <span className="font-medium text-muted">{leagueName}</span></span>}
@@ -1924,18 +1926,18 @@ function LoginScreen({ onAuthed }) {
               <AuthField label="Email"        type="email"    value={email}       onChange={setEmail}       placeholder="you@example.com" />
               <AuthField label="Password"     type="password" value={password}    onChange={setPassword}    placeholder="At least 6 characters" />
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-1.5">Which team are you?</div>
+                <div className="text-[12px] uppercase tracking-wider text-dim font-semibold mb-1.5">Which team are you?</div>
                 <div className="space-y-1">
                   {unclaimedTeams.map(m => (
                     <button key={m.teamId} type="button" onClick={() => setTeamId(m.teamId)}
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-md border text-left text-sm transition-colors ${teamId===m.teamId ? "border-green bg-green/8" : "border-line hover:border-line-2"}`}>
                       <span className="w-3 h-3 rounded-full" style={{ background: m.teamColor }}/>
                       <span className="font-medium">{m.teamName}</span>
-                      {teamId===m.teamId && <span className="ml-auto text-[10px] text-green font-bold uppercase">Selected</span>}
+                      {teamId===m.teamId && <span className="ml-auto text-[11px] text-green font-bold uppercase">Selected</span>}
                     </button>
                   ))}
                   {claimedTeams.length > 0 && (
-                    <div className="text-[10px] text-dim pt-1.5">Already claimed: {claimedTeams.map(m => m.teamName).join(", ")}</div>
+                    <div className="text-[11px] text-dim pt-1.5">Already claimed: {claimedTeams.map(m => m.teamName).join(", ")}</div>
                   )}
                   {!lookupBusy && !lookupErr && members.length > 0 && unclaimedTeams.length === 0 && (
                     <div className="text-xs text-dim italic">All teams in this league are claimed. Ask the commissioner to add a slot, or start your own league.</div>
@@ -1945,7 +1947,7 @@ function LoginScreen({ onAuthed }) {
                   )}
                 </div>
               </div>
-              {error && <div className="text-[11px] text-red">{error}</div>}
+              {error && <div className="text-[12px] text-red">{error}</div>}
               <button type="submit" disabled={loading || !teamId}
                 className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
                 {loading ? "Creating account…" : "Create account & claim team"}
@@ -1955,12 +1957,12 @@ function LoginScreen({ onAuthed }) {
 
           {mode === "create" && !createdLeague && (
             <form onSubmit={handleCreate} className="space-y-3">
-              <div className="text-[12px] text-muted leading-snug">
+              <div className="text-[13px] text-muted leading-snug">
                 Spin up a fresh OnlyMajors league. You'll get a shareable code to send to your buddies. The commissioner claims a team after creating the league.
               </div>
               <AuthField label="League name" type="text" value={newLeagueName} onChange={setNewLeagueName} placeholder="e.g. The Back Nine" />
               <div>
-                <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Invite code <span className="text-dim normal-case font-normal tracking-normal">(optional — we'll generate one if blank)</span></span>
+                <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">Invite code <span className="text-dim normal-case font-normal tracking-normal">(optional — we'll generate one if blank)</span></span>
                 <input type="text" value={newLeagueCode}
                   onChange={e => setNewLeagueCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
                   placeholder="e.g. BACK9"
@@ -1968,7 +1970,7 @@ function LoginScreen({ onAuthed }) {
                   className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
               </div>
               <div>
-                <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Number of teams</span>
+                <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">Number of teams</span>
                 <div className="flex gap-1">
                   {[3,4,5,6,8,10,12].map(n => (
                     <button key={n} type="button" onClick={() => setNewTeamCount(n)}
@@ -1979,7 +1981,7 @@ function LoginScreen({ onAuthed }) {
                   ))}
                 </div>
               </div>
-              {error && <div className="text-[11px] text-red">{error}</div>}
+              {error && <div className="text-[12px] text-red">{error}</div>}
               <button type="submit" disabled={loading}
                 className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
                 {loading ? "Creating league…" : "Create league"}
@@ -1991,11 +1993,11 @@ function LoginScreen({ onAuthed }) {
             <div className="space-y-3">
               <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#2b4535" }}>
                 <div className="font-semibold mb-1">{createdLeague.league.name} is live</div>
-                <div className="text-[12px]">
+                <div className="text-[13px]">
                   Share this invite code:
                 </div>
                 <div className="font-mono text-xl font-bold tracking-widest mt-1 mb-1">{createdLeague.league.code}</div>
-                <div className="text-[11px]">
+                <div className="text-[12px]">
                   Anyone with the code can claim a team from this league's sign-up page.
                 </div>
               </div>
@@ -2013,7 +2015,7 @@ function LoginScreen({ onAuthed }) {
           )}
         </div>
 
-        <div className="text-center text-[11px] text-dim mt-6">
+        <div className="text-center text-[12px] text-dim mt-6">
           {mode === "signup" && leagueName ? (
             <>League code: <span className="font-mono text-muted">{leagueCode}</span> · {leagueName}</>
           ) : mode === "signup" ? (
@@ -2032,7 +2034,7 @@ function LoginScreen({ onAuthed }) {
 function AuthField({ label, type, value, onChange, placeholder }) {
   return (
     <label className="block">
-      <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">{label}</span>
+      <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">{label}</span>
       <input type={type} required value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
     </label>
@@ -2187,21 +2189,9 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
             <OnlyMajorsLogo size={54} cream={true} />
             <span className="font-bold tracking-tight" style={{ color: "var(--bg-1)" }}>OnlyMajors</span>
           </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="hidden sm:inline" style={{ color: "rgba(247,244,234,0.7)" }}>{authedUser.email}</span>
-            {onOpenOnboarding && (
-              <button onClick={onOpenOnboarding}
-                className="transition-opacity hover:opacity-80 text-xs uppercase tracking-wider font-semibold"
-                style={{ color: "var(--bg-1)" }}>
-                How it works
-              </button>
-            )}
-            <button onClick={onSignOut}
-              className="transition-opacity hover:opacity-80 text-xs uppercase tracking-wider font-semibold"
-              style={{ color: "var(--bg-1)" }}>
-              Sign out
-            </button>
-          </div>
+          <HubUserMenu authedUser={authedUser} firstName={firstName}
+            onOpenProfile={() => onOpenProfile && onOpenProfile(summary?.leagues?.[0]?.league?.id)}
+            onOpenOnboarding={onOpenOnboarding} onSignOut={onSignOut} />
         </div>
       </header>
 
@@ -2232,12 +2222,12 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
         <div className="mt-8 grid sm:grid-cols-2 gap-3">
           <button onClick={() => setAction("join")}
             className="rounded-xl border-2 border-line bg-white px-4 py-3 text-left om-darken-hover">
-            <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">Already invited?</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim font-semibold">Already invited?</div>
             <div className="font-semibold text-sm mt-0.5">Join another league</div>
           </button>
           <button onClick={() => setAction("create")}
             className="rounded-xl border-2 px-4 py-3 text-left transition-colors om-pill">
-            <div className="text-[10px] uppercase tracking-wider font-semibold opacity-80">Run your own</div>
+            <div className="text-[11px] uppercase tracking-wider font-semibold opacity-80">Run your own</div>
             <div className="font-semibold text-sm mt-0.5">Start a new league</div>
           </button>
         </div>
@@ -2254,6 +2244,76 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
 
 // Career profile card on top of the Hub — shows greeting + 4 career stats:
 // tournament avg, overall avg, tournament wins, overall wins.
+// Hub top-right user menu — mirrors the in-league UserMenu but skinned for the
+// green Hub header. Trigger shows initials + first name + chevron; dropdown
+// has Profile settings / How it works / Sign out.
+function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  const ref = React.useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  const initials = (authedUser.displayName || authedUser.email || "?")
+    .split(/[\s@]/).filter(Boolean).map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
+  const label = firstName || (authedUser.displayName || "").split(/\s+/)[0] || authedUser.email;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full transition-opacity hover:opacity-85"
+        style={{ background: "rgba(247,244,234,0.10)", color: "var(--bg-1)" }}>
+        <span className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold"
+          style={{ background: "var(--bg-1)", color: "var(--green)" }}>
+          {initials || "OM"}
+        </span>
+        <span className="text-sm font-semibold">{label}</span>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1.5 w-56 z-40 bg-white rounded-xl shadow-lg border border-line-2 overflow-hidden fade-in"
+          style={{ color: "var(--text)" }}>
+          <div className="px-3 py-2.5 border-b border-line">
+            <div className="text-sm font-semibold truncate">{authedUser.displayName || label}</div>
+            <div className="text-[12px] text-dim truncate">{authedUser.email}</div>
+          </div>
+          <button onClick={() => { onOpenProfile && onOpenProfile(); setOpen(false); }}
+            className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="6" r="3"/>
+              <path d="M2 14c0-3 3-5 6-5s6 2 6 5"/>
+            </svg>
+            Profile settings
+          </button>
+          <button onClick={() => { onOpenOnboarding && onOpenOnboarding(); setOpen(false); }}
+            className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="8" r="6"/>
+              <path d="M8 11.5v.01"/>
+              <path d="M6 6a2 2 0 014 0c0 1-2 1.5-2 3"/>
+            </svg>
+            How it works
+          </button>
+          <button onClick={() => { onSignOut && onSignOut(); setOpen(false); }}
+            className="w-full px-3 py-2.5 text-left text-sm font-medium text-muted hover:text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 11l3-3-3-3M13 8H6M9 13H4a1 1 0 01-1-1V4a1 1 0 011-1h5"/>
+            </svg>
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProfileStatsCard({ firstName, authedUser, summary, stats, onOpenProfile }) {
   const initials = (authedUser.displayName || authedUser.email || "?")
     .split(/[\s@]/).filter(Boolean).map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
@@ -2280,7 +2340,7 @@ function ProfileStatsCard({ firstName, authedUser, summary, stats, onOpenProfile
       {hasStats ? (
         <>
           <div className="flex items-center gap-2 mb-2">
-            <div className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim">Career Stats</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-dim">Career Stats</div>
             <div className="flex-1 h-px bg-line"/>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -2302,18 +2362,18 @@ function ProfileStatsCard({ firstName, authedUser, summary, stats, onOpenProfile
               highlight={stats.tournWins > 0}
             />
             <CareerStat
-              label="Overall avg"
+              label="Season avg"
               value={fmt(stats.overallAvg)}
               sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
             />
             <CareerStat
-              label="Overall PR"
+              label="Season PR"
               value={fmt(stats.overallPR)}
               sub="best full season"
               highlight={stats.overallPR > 0}
             />
             <CareerStat
-              label="Overall wins"
+              label="Season wins"
               value={String(stats.overallWins)}
               sub={stats.overallWins === 1 ? "season title" : "season titles"}
               highlight={stats.overallWins > 0}
@@ -2332,12 +2392,12 @@ function ProfileStatsCard({ firstName, authedUser, summary, stats, onOpenProfile
 function CareerStat({ label, value, sub, highlight }) {
   return (
     <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-dim font-semibold">{label}</div>
       <div className="display-num font-bold text-lg mt-0.5 truncate"
         style={highlight ? { color: "var(--gold)" } : {}}>
         {value}
       </div>
-      <div className="text-[10px] text-dim mt-0.5 truncate">{sub}</div>
+      <div className="text-[11px] text-dim mt-0.5 truncate">{sub}</div>
     </div>
   );
 }
@@ -2415,6 +2475,7 @@ function LeagueHubCard({ entry, activeMajor, liveMajor, syncToken, onEnter }) {
   };
 
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [averagesOpen, setAveragesOpen] = useState(false);
 
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
@@ -2425,12 +2486,12 @@ function LeagueHubCard({ entry, activeMajor, liveMajor, syncToken, onEnter }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-bold text-lg tracking-tight truncate">{league.name}</span>
-            <span className="text-[10px] uppercase tracking-wider text-dim font-mono">{league.code}</span>
+            <span className="text-[11px] uppercase tracking-wider text-dim font-mono">{league.code}</span>
           </div>
           <div className="flex items-center gap-2 mt-1.5">
             <span className="w-3 h-3 rounded-full shrink-0" style={{ background: myTeam.teamColor }}/>
             <span className="text-sm text-muted">{myTeam.teamName}</span>
-            <span className="text-[11px] text-dim">· {standing.totalTeams}/{standing.capacity} teams</span>
+            <span className="text-[12px] text-dim">· {standing.totalTeams}/{standing.capacity} teams</span>
           </div>
         </div>
 
@@ -2464,7 +2525,7 @@ function LeagueHubCard({ entry, activeMajor, liveMajor, syncToken, onEnter }) {
             <path d="M4 5a2 2 0 01-2-2"/>
             <path d="M12 5a2 2 0 002-2"/>
           </svg>
-          <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">Hall of Fame</span>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">Hall of Fame</span>
         </div>
         <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${archiveOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9"/>
@@ -2473,6 +2534,25 @@ function LeagueHubCard({ entry, activeMajor, liveMajor, syncToken, onEnter }) {
 
       {/* Archive panel */}
       {archiveOpen && <LeagueArchivePanel leagueId={league.id} />}
+
+      {/* League-wide averages toggle */}
+      <button onClick={() => setAveragesOpen(o => !o)}
+        className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-green" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 14h12"/>
+            <rect x="3" y="8" width="2.5" height="5"/>
+            <rect x="6.75" y="5" width="2.5" height="8"/>
+            <rect x="10.5" y="2" width="2.5" height="11"/>
+          </svg>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">League-wide averages</span>
+        </div>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${averagesOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+
+      {averagesOpen && <LeagueAveragesPanel leagueId={league.id} members={members} picks={picks} myTeamId={myTeam.teamId} syncToken={syncToken} />}
     </div>
   );
 }
@@ -2541,7 +2621,7 @@ function ArchiveYearBlock({ year, data }) {
             </span>
           )}
         </div>
-        {totalsLine && <span className="text-[10px] uppercase tracking-wider text-dim">{totalsLine}</span>}
+        {totalsLine && <span className="text-[11px] uppercase tracking-wider text-dim">{totalsLine}</span>}
       </div>
 
       {/* Major-winners row */}
@@ -2550,19 +2630,188 @@ function ArchiveYearBlock({ year, data }) {
           const w = majorWins[m.id];
           return (
             <div key={m.id} className="rounded-md border border-line bg-bg2/60 px-2.5 py-2">
-              <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{m.short}</div>
+              <div className="text-[11px] uppercase tracking-wider text-dim font-semibold">{m.short}</div>
               <div className="text-sm font-semibold mt-0.5 truncate">{w?.teamName || "—"}</div>
-              {w?.earnings != null && <div className="text-[11px] text-muted font-mono">{fmt(w.earnings)}</div>}
+              {w?.earnings != null && <div className="text-[12px] text-muted font-mono">{fmt(w.earnings)}</div>}
             </div>
           );
         })}
       </div>
 
       {topEarner && (
-        <div className="mt-3 text-[11px] text-dim">
+        <div className="mt-3 text-[12px] text-dim">
           Top single-tournament cheque: <span className="font-semibold text-text">{topEarner.teamName}</span>
           {topEarner.majorShort && <span> at the {topEarner.majorShort}</span>}
           {topEarner.amount != null && <span className="font-mono text-muted"> · {fmt(topEarner.amount)}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// League-wide averages panel — every team's career stats side by side. Same
+// math as the user's personal Career Stats card, just iterated across all
+// members of the league so people can compare averages, PRs, and trophies.
+function LeagueAveragesPanel({ leagueId, members, picks, myTeamId, syncToken }) {
+  const [archive, setArchive] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true); setError(null);
+    apiLeagueArchive(leagueId)
+      .then(r => { if (!cancelled) setArchive(r); })
+      .catch(e => { if (!cancelled) setError(e.message); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [leagueId]);
+
+  const rows = useMemo(() => {
+    if (!members?.length) return [];
+    const MIDS = ["masters","pga","usopen","open"];
+    const list = members.map(member => {
+      const teamId = member.teamId;
+      let tournSum = 0, tournCount = 0, seasonSum = 0, seasonCount = 0;
+      let tournWins = 0, overallWins = 0, tournPR = 0, overallPR = 0;
+
+      // Archived years
+      for (const yearEntry of (archive?.years || [])) {
+        const data = yearEntry.data || {};
+        const t = (data.teams || []).find(x => x.teamId === teamId);
+        if (t) {
+          for (const mid of MIDS) {
+            if (t.byMajor?.[mid] != null) {
+              const v = Number(t.byMajor[mid]) || 0;
+              tournSum += v; tournCount++;
+              if (v > tournPR) tournPR = v;
+            }
+          }
+          const tot = Number(t.total) || 0;
+          seasonSum += tot; seasonCount++;
+          if (tot > overallPR) overallPR = tot;
+        }
+        for (const mid of MIDS) {
+          if (data.majorWinners?.[mid]?.teamId === teamId) tournWins++;
+        }
+        if (data.champion?.teamId === teamId) overallWins++;
+      }
+
+      // Current season completed majors fold in
+      for (const m of MAJORS) {
+        if (m.status !== "complete") continue;
+        const earnings = teamMajorTotal(teamId, m.id, picks);
+        tournSum += earnings; tournCount++;
+        if (earnings > tournPR) tournPR = earnings;
+        const all = members.map(mem => ({
+          teamId: mem.teamId,
+          total:  teamMajorTotal(mem.teamId, m.id, picks),
+        })).sort((a, b) => b.total - a.total);
+        if (all[0]?.teamId === teamId && all[0].total > 0) tournWins++;
+      }
+
+      return {
+        teamId, teamName: member.teamName, teamColor: member.teamColor,
+        tournAvg:   tournCount  > 0 ? Math.round(tournSum  / tournCount)  : 0,
+        tournPR,    tournWins,
+        overallAvg: seasonCount > 0 ? Math.round(seasonSum / seasonCount) : 0,
+        overallPR,  overallWins,
+      };
+    });
+    return list;
+  // syncToken bumps when EARN hydrates so current-season earnings flow in
+  // each time a tournament finishes — same recompute pattern as the user's
+  // personal Career Stats card.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members, picks, archive, syncToken]);
+
+  // Click-to-sort: first click on a column header → descending (best at top,
+  // chevron up). Second click → ascending (worst at top, chevron down).
+  // Clicking another column resets the previous and starts the new one at
+  // descending.
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("desc");
+  const onSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(d => d === "desc" ? "asc" : "desc");
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  };
+  const sortedRows = useMemo(() => {
+    if (!sortKey) {
+      return [...rows].sort((a, b) => (b.overallWins - a.overallWins) || (b.overallAvg - a.overallAvg));
+    }
+    const dir = sortDir === "desc" ? -1 : 1;
+    return [...rows].sort((a, b) => dir * ((Number(a[sortKey]) || 0) - (Number(b[sortKey]) || 0)));
+  }, [rows, sortKey, sortDir]);
+
+  // Header-cell renderer with sort affordance — dash when inactive, chevron
+  // up when sorted descending, chevron down when ascending.
+  const SortableTH = ({ k, label }) => {
+    const active = sortKey === k;
+    const dirIcon = active ? (sortDir === "desc"
+      ? <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+      : <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    ) : <span className="leading-none" style={{ fontSize: "11px", color: "var(--dim)" }}>—</span>;
+    return (
+      <th className="text-right px-2 whitespace-nowrap">
+        <button onClick={() => onSort(k)}
+          className={`inline-flex items-center gap-1 justify-end text-[11px] uppercase tracking-wider font-semibold hover:text-text transition-colors ${active ? "" : "text-dim"}`}
+          style={active ? { color: "var(--green)" } : {}}>
+          <span>{label}</span>
+          <span className="inline-flex items-center">{dirIcon}</span>
+        </button>
+      </th>
+    );
+  };
+
+  return (
+    <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
+      {loading && <div className="text-xs text-dim">Loading league averages…</div>}
+      {error   && <div className="text-xs text-red">Couldn't load averages: {error}</div>}
+      {!loading && !error && rows.length > 0 && (
+        <div className="overflow-x-auto -mx-1 px-1">
+          <table className="w-full text-sm" style={{ borderCollapse: "separate", borderSpacing: 0 }}>
+            <thead>
+              <tr>
+                <th className="text-left py-2 pr-3 whitespace-nowrap text-[11px] uppercase tracking-wider text-dim font-semibold">Team</th>
+                <SortableTH k="tournAvg"   label="Tour avg" />
+                <SortableTH k="tournPR"    label="Tour PR" />
+                <SortableTH k="tournWins"  label="Tour W" />
+                <SortableTH k="overallAvg" label="Season avg" />
+                <SortableTH k="overallPR"  label="Season PR" />
+                <SortableTH k="overallWins" label="Season W" />
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map(r => {
+                const isMe = r.teamId === myTeamId;
+                return (
+                  <tr key={r.teamId} className="border-t border-line"
+                    style={isMe ? { background: "rgba(15, 122, 62, 0.05)" } : {}}>
+                    <td className="py-2 pr-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: r.teamColor }}/>
+                        <span className={`font-semibold ${isMe ? "" : "text-text"}`}>{r.teamName}</span>
+                        {isMe && <span className="text-[10px] uppercase tracking-wider font-bold text-green ml-1">You</span>}
+                      </div>
+                    </td>
+                    <td className="text-right px-2 font-mono whitespace-nowrap">{fmt(r.tournAvg)}</td>
+                    <td className="text-right px-2 font-mono whitespace-nowrap">{fmt(r.tournPR)}</td>
+                    <td className="text-right px-2 font-mono font-semibold whitespace-nowrap"
+                      style={r.tournWins > 0 ? { color: "var(--gold)" } : {}}>{r.tournWins}</td>
+                    <td className="text-right px-2 font-mono whitespace-nowrap">{fmt(r.overallAvg)}</td>
+                    <td className="text-right px-2 font-mono whitespace-nowrap">{fmt(r.overallPR)}</td>
+                    <td className="text-right pl-2 font-mono font-semibold whitespace-nowrap"
+                      style={r.overallWins > 0 ? { color: "var(--gold)" } : {}}>{r.overallWins}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -2573,9 +2822,9 @@ function Stat({ label, value, sub, tone }) {
   const toneColor = tone === "ok" ? "#2b4535" : tone === "warn" ? "#b08006" : tone === "muted" ? "var(--dim)" : "var(--text)";
   return (
     <div className="min-w-0">
-      <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-dim font-semibold">{label}</div>
       <div className="text-sm font-semibold truncate" style={{ color: toneColor }}>{value}</div>
-      {sub && <div className="text-[11px] text-dim font-mono truncate">{sub}</div>}
+      {sub && <div className="text-[12px] text-dim font-mono truncate">{sub}</div>}
     </div>
   );
 }
@@ -2660,14 +2909,14 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
           <form onSubmit={handleCreate} className="space-y-3">
             <AuthField label="League name" type="text" value={name} onChange={setName} placeholder="e.g. The Back Nine" />
             <div>
-              <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Invite code <span className="text-dim normal-case font-normal tracking-normal">(optional)</span></span>
+              <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">Invite code <span className="text-dim normal-case font-normal tracking-normal">(optional)</span></span>
               <input type="text" value={code}
                 onChange={e => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
                 placeholder="e.g. BACK9" maxLength={16}
                 className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
             </div>
             <div>
-              <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Number of teams</span>
+              <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">Number of teams</span>
               <div className="flex gap-1">
                 {[3,4,5,6,8,10,12].map(n => (
                   <button key={n} type="button" onClick={() => setTeamCount(n)}
@@ -2678,7 +2927,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
                 ))}
               </div>
             </div>
-            {error && <div className="text-[11px] text-red">{error}</div>}
+            {error && <div className="text-[12px] text-red">{error}</div>}
             <button type="submit" disabled={busy}
               className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
               {busy ? "Creating…" : "Create league"}
@@ -2690,7 +2939,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
           <div className="space-y-3">
             <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#2b4535" }}>
               <div className="font-semibold mb-1">{createdLeague.league.name} is live</div>
-              <div className="text-[12px]">Share this invite code:</div>
+              <div className="text-[13px]">Share this invite code:</div>
               <div className="font-mono text-xl font-bold tracking-widest mt-1">{createdLeague.league.code}</div>
             </div>
             <button onClick={() => navigator.clipboard?.writeText(createdLeague.league.code)}
@@ -2705,19 +2954,19 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
         {kind === "join" && (
           <div className="space-y-3">
             <div>
-              <span className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">League code</span>
+              <span className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">League code</span>
               <input type="text" value={joinCode}
                 onChange={e => setJoinCode(e.target.value.toUpperCase())}
                 placeholder="Ask your commissioner"
                 className="w-full bg-bg2 border border-line-2 rounded-lg px-3 py-2.5 text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-green/40 placeholder-dim text-text" />
-              <div className="text-[11px] text-dim mt-1 min-h-[14px]">
+              <div className="text-[12px] text-dim mt-1 min-h-[14px]">
                 {lookupBusy && "Looking up league…"}
                 {!lookupBusy && lookup && <span>League: <span className="font-medium text-muted">{lookup.league.name}</span></span>}
               </div>
             </div>
-            {error && <div className="text-[12px] text-muted leading-snug border border-line rounded-lg p-3 bg-bg2">{error}</div>}
+            {error && <div className="text-[13px] text-muted leading-snug border border-line rounded-lg p-3 bg-bg2">{error}</div>}
             {!error && (
-              <div className="text-[12px] text-muted leading-snug">
+              <div className="text-[13px] text-muted leading-snug">
                 Heads up — joining additional leagues from an existing account is on the roadmap. For now, share the code with someone else, or sign out and create a new account using this code to play in a separate league.
               </div>
             )}
@@ -2773,10 +3022,10 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
               <TeamBadge team={user} size="md" />
               <div className="min-w-0 flex-1 leading-tight">
                 <div className="font-semibold text-sm truncate">{user.name}</div>
-                <div className="text-[11px] text-dim truncate">{user.email}</div>
+                <div className="text-[12px] text-dim truncate">{user.email}</div>
               </div>
             </div>
-            <div className="mt-2.5 flex items-center justify-between text-[11px]">
+            <div className="mt-2.5 flex items-center justify-between text-[12px]">
               <span className="text-dim">Rank <span className={`font-mono font-semibold ${rank===1 ? "text-gold" : "text-text"}`}>#{rank}</span></span>
               <span className="text-dim">Season <span className="font-mono font-semibold text-green">{fmt(teamSeasonTotal(user.id))}</span></span>
             </div>
@@ -2829,7 +3078,7 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
 
           {/* League standings (read-only — you can only edit your own team) */}
           <div className="py-1">
-            <div className="px-3 pt-2 pb-1 text-[9px] uppercase tracking-[0.14em] text-dim font-semibold">
+            <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-[0.14em] text-dim font-semibold">
               League standings
             </div>
             {sortedTeams.map(t => {
@@ -2840,8 +3089,8 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
                   <TeamBadge team={t} size="sm" />
                   <span className="flex-1 text-left text-sm font-medium truncate">{t.name}</span>
                   {sel
-                    ? <span className="text-[10px] font-bold uppercase text-green tracking-wider">You</span>
-                    : <span className="font-mono text-[11px] text-dim">{fmt(t.total)}</span>}
+                    ? <span className="text-[11px] font-bold uppercase text-green tracking-wider">You</span>
+                    : <span className="font-mono text-[12px] text-dim">{fmt(t.total)}</span>}
                 </div>
               );
             })}
@@ -2890,7 +3139,7 @@ function TeamSelector({ value, onChange }) {
         className="flex items-center gap-2.5 pl-2 pr-3 py-2 rounded-xl border border-line-2 bg-white hover:bg-white hover:border-line-2 transition-all min-w-[180px]">
         <TeamBadge team={current} size="sm" />
         <div className="text-left flex-1 min-w-0 leading-tight">
-          <div className="text-[10px] uppercase tracking-wider text-dim">Viewing as</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim">Viewing as</div>
           <div className="text-sm font-semibold truncate">{current.name}</div>
         </div>
         <svg viewBox="0 0 16 16" className={`w-5 h-5 text-muted shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -2900,7 +3149,7 @@ function TeamSelector({ value, onChange }) {
 
       {open && (
         <div className="absolute right-0 mt-2 w-[300px] z-40 rounded-xl border border-line-2 shadow-2xl overflow-hidden fade-in" style={{ background: "#ffffff" }}>
-          <div className="px-3 py-2 text-[10px] uppercase tracking-wider text-dim border-b border-line bg-black/[0.04]">
+          <div className="px-3 py-2 text-[11px] uppercase tracking-wider text-dim border-b border-line bg-black/[0.04]">
             Select team — by season earnings
           </div>
           <div className="py-1 max-h-[60vh] overflow-y-auto">
@@ -2910,24 +3159,24 @@ function TeamSelector({ value, onChange }) {
                 <button key={t.id}
                   onClick={() => { onChange(t.id); setOpen(false); }}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white transition-colors ${sel ? "bg-green/8" : ""}`}>
-                  <div className="text-[10px] font-mono font-semibold text-dim w-4 text-right">{idx+1}</div>
+                  <div className="text-[11px] font-mono font-semibold text-dim w-4 text-right">{idx+1}</div>
                   <TeamBadge team={t} size="md" />
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold text-sm truncate flex items-center gap-2">
                       {t.name}
-                      {sel && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green/20 text-green font-semibold">CURRENT</span>}
+                      {sel && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green/20 text-green font-semibold">CURRENT</span>}
                     </div>
-                    <div className="text-[11px] text-dim">{t.owner}</div>
+                    <div className="text-[12px] text-dim">{t.owner}</div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="display-num font-bold text-sm text-green">{fmt(t.total)}</div>
-                    <div className="text-[9px] uppercase tracking-wider text-dim">season</div>
+                    <div className="text-[10px] uppercase tracking-wider text-dim">season</div>
                   </div>
                 </button>
               );
             })}
           </div>
-          <div className="px-3 py-2 text-[10px] text-dim border-t border-line bg-black/20">
+          <div className="px-3 py-2 text-[11px] text-dim border-t border-line bg-black/20">
             Switching team changes whose picks you're managing.
           </div>
         </div>
@@ -2941,7 +3190,7 @@ function TabBar({ tab, setTab }) {
     { id: "picks",       label: "My Picks" },
     { id: "live",        label: "Live" },
     { id: "chat",        label: "Chat" },
-    { id: "leaderboard", label: "Overall Standings" },
+    { id: "leaderboard", label: "Season Standings" },
   ];
   return (
     <nav className="border-b border-line bg-bg2/40 backdrop-blur-xl sticky top-[57px] sm:top-[65px] z-20">
@@ -2994,7 +3243,7 @@ const ONBOARDING_SLIDES = [
     title: "Win the season",
     body:  "Earnings stack across all four majors. Whoever's got the biggest bank when The Open wraps wins the season. Ties broken first by your original-starters total, then by who's closest with their winning-score prediction.",
     image: null,
-    placeholder: "Overall standings · season totals",
+    placeholder: "Season standings · season totals",
   },
 ];
 
@@ -3054,7 +3303,7 @@ function OnboardingModal({ dismissible, onClose }) {
 
         {/* Text */}
         <div className="p-6 sm:p-7 flex flex-col">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-dim mb-2">
+          <div className="text-[11px] uppercase tracking-[0.2em] text-dim mb-2">
             How OnlyMajors works · {idx + 1}/{ONBOARDING_SLIDES.length}
           </div>
           <h2 className="font-bold text-2xl tracking-tight mb-2.5">{slide.title}</h2>
@@ -3104,7 +3353,7 @@ function OnboardingModal({ dismissible, onClose }) {
 function Footer() {
   return (
     <footer className="border-t border-line mt-6">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 text-[11px] text-dim flex flex-wrap gap-3 justify-between">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 text-[12px] text-dim flex flex-wrap gap-3 justify-between">
         <span><span className="font-semibold text-muted">OnlyMajors</span> · fantasy golf when it counts · onlymajors.com</span>
         <span className="text-muted">Real 2026 PGA Championship at Aronimink</span>
       </div>
@@ -3138,7 +3387,7 @@ function SyncBar({ status, message, lastUpdated, onRefresh }) {
         {status === "idle"    && "Not yet synced"}
       </span>
       <button onClick={onRefresh} disabled={status === "syncing"}
-        className="ml-1 text-[11px] font-semibold text-green hover:text-green-2 disabled:opacity-40 disabled:cursor-wait">
+        className="ml-1 text-[12px] font-semibold text-green hover:text-green-2 disabled:opacity-40 disabled:cursor-wait">
         ↻ Refresh
       </button>
     </div>
@@ -3205,7 +3454,7 @@ function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
             <span className="font-semibold text-sm">{m.name}</span>
             <StatusBadge status={m.status} />
           </div>
-          <div className="text-[11px] text-dim mt-0.5">{m.start}–{m.end} · {m.course}</div>
+          <div className="text-[12px] text-dim mt-0.5">{m.start}–{m.end} · {m.course}</div>
         </div>
         {t > 0 && <div className="text-xs font-mono text-green tabular-nums">{fmt(t)}</div>}
       </button>
@@ -3225,7 +3474,7 @@ function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
         </div>
         {tot > 0 && (
           <div className="text-right shrink-0 leading-tight">
-            <div className="text-[10px] uppercase tracking-wider text-dim">Total</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">Total</div>
             <div className="display-num font-bold text-sm text-green">{fmt(tot)}</div>
           </div>
         )}
@@ -3267,7 +3516,7 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
         <div className="relative p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-dim">
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.16em] text-dim">
                 <StatusBadge status={major.status} />
                 {major.status === "live" && <span>R{major.currentRound} · {major.roundStatus}</span>}
                 {major.status === "upcoming" && <span>Tees off {major.start}</span>}
@@ -3276,7 +3525,7 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
               <div className="text-sm text-muted mt-1">{major.course} · {major.city}</div>
             </div>
             <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-dim">Purse</div>
+              <div className="text-[11px] uppercase tracking-wider text-dim">Purse</div>
               <div className="display-num font-bold text-2xl">{fmt(major.purse)}</div>
             </div>
           </div>
@@ -3419,7 +3668,7 @@ function CourseCard({ major }) {
   return (
     <div className="glass rounded-2xl p-5 space-y-5">
       <div>
-        <div className="text-[10px] uppercase tracking-[0.16em] text-dim">Course Notes</div>
+        <div className="text-[11px] uppercase tracking-[0.16em] text-dim">Course Notes</div>
         <h3 className="font-bold text-lg mt-1">{major.course}</h3>
         <p className="text-sm text-muted leading-relaxed mt-1">{info.description}</p>
       </div>
@@ -3428,7 +3677,7 @@ function CourseCard({ major }) {
       <div>
         <div className="flex items-baseline justify-between mb-2">
           <h4 className="font-semibold text-sm">Past winners at {major.course.split(" GC")[0].split(" Golf")[0]}</h4>
-          <span className="text-[10px] uppercase tracking-wider text-dim">{info.eventName} unless noted</span>
+          <span className="text-[11px] uppercase tracking-wider text-dim">{info.eventName} unless noted</span>
         </div>
         <div className="overflow-hidden rounded-lg border border-line">
           <table className="w-full text-sm">
@@ -3438,7 +3687,7 @@ function CourseCard({ major }) {
                   <td className="px-3 py-2 font-mono text-dim w-16">{w.year}</td>
                   <td className="px-3 py-2 font-medium">{w.name}</td>
                   <td className="px-3 py-2 text-right font-mono text-muted">{w.score}</td>
-                  {w.event && <td className="px-3 py-2 text-[10px] uppercase tracking-wider text-dim text-right">{w.event}</td>}
+                  {w.event && <td className="px-3 py-2 text-[11px] uppercase tracking-wider text-dim text-right">{w.event}</td>}
                 </tr>
               ))}
             </tbody>
@@ -3451,8 +3700,8 @@ function CourseCard({ major }) {
         <div className="flex items-baseline justify-between mb-2 gap-2 flex-wrap">
           <h4 className="font-semibold text-sm">Tournament-week forecast</h4>
           {inForecastWindow
-            ? <span className="text-[10px] uppercase tracking-wider text-dim">via Open-Meteo · {major.city}</span>
-            : <span className="text-[10px] uppercase tracking-wider text-dim">{dOut > 0 ? `Tees off in ${dOut} days` : "Tournament complete"}</span>}
+            ? <span className="text-[11px] uppercase tracking-wider text-dim">via Open-Meteo · {major.city}</span>
+            : <span className="text-[11px] uppercase tracking-wider text-dim">{dOut > 0 ? `Tees off in ${dOut} days` : "Tournament complete"}</span>}
         </div>
         {inForecastWindow && forecast ? (
           <div className="grid grid-cols-1 sm:grid-cols-4 lg:grid-cols-7 gap-2">
@@ -3461,14 +3710,14 @@ function CourseCard({ major }) {
                 className={`border rounded-lg p-2.5 flex items-center sm:flex-col sm:text-center gap-3 sm:gap-0 ${d.isCompetition ? "bg-white border-line-2" : "bg-black/[0.04] border-line"}`}>
                 {/* Label + day (left side on mobile, top on desktop) */}
                 <div className="flex sm:flex-col sm:items-center items-baseline gap-2 sm:gap-0 shrink-0 w-20 sm:w-auto">
-                  <div className={`text-[10px] uppercase tracking-wider font-semibold ${d.isCompetition ? "" : "text-dim"}`}
+                  <div className={`text-[11px] uppercase tracking-wider font-semibold ${d.isCompetition ? "" : "text-dim"}`}
                     style={d.isCompetition ? { color: "#2b4535" } : {}}>
                     {d.round}
                   </div>
                   <div className="text-sm font-semibold sm:mt-0.5">{d.day} <span className="text-dim font-normal">{d.date}</span></div>
                 </div>
                 {d.missing ? (
-                  <div className="flex-1 sm:my-3 text-[11px] text-dim italic">Outside forecast window</div>
+                  <div className="flex-1 sm:my-3 text-[12px] text-dim italic">Outside forecast window</div>
                 ) : (
                   <>
                     {/* Icon (middle on mobile, top-block on desktop) */}
@@ -3476,7 +3725,7 @@ function CourseCard({ major }) {
                     {/* Hi/Lo + rain + wind (right on mobile, stacked on desktop) */}
                     <div className="flex-1 flex items-baseline gap-3 sm:block sm:flex-none sm:gap-0">
                       <div className="text-base font-bold display-num">{d.hi}° <span className="text-dim text-xs font-medium">/ {d.lo}°</span></div>
-                      <div className="text-[10px] text-muted sm:mt-1 sm:space-y-0.5">
+                      <div className="text-[11px] text-muted sm:mt-1 sm:space-y-0.5">
                         <div>{d.precip}% rain</div>
                         <div>{d.wind} mph{d.windCardinal ? ` ${d.windCardinal}` : ""}</div>
                       </div>
@@ -3507,9 +3756,9 @@ function CourseCard({ major }) {
 function HeroStat({ label, value, sub, accent }) {
   return (
     <div className="glass-2 rounded-xl p-3">
-      <div className="text-[10px] uppercase tracking-wider text-dim">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-dim">{label}</div>
       <div className={`display-num font-bold text-xl sm:text-2xl mt-0.5 ${accent ? "text-green" : "text-text"}`}>{value}</div>
-      <div className="text-[10px] text-dim mt-0.5">{sub}</div>
+      <div className="text-[11px] text-dim mt-0.5">{sub}</div>
     </div>
   );
 }
@@ -3520,7 +3769,7 @@ function SectionHeader({ title, sub, tag }) {
       <div>
         <h2 className="font-bold text-lg flex items-baseline gap-2">
           {title}
-          <span className="text-[10px] uppercase tracking-wider text-dim font-semibold">{tag}</span>
+          <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">{tag}</span>
         </h2>
         <div className="text-xs text-dim">{sub}</div>
       </div>
@@ -3546,7 +3795,7 @@ function SubsLockedBanner({ major }) {
       </svg>
       <div>
         <div className="font-semibold">Subs locked · Round {activeRound} in progress</div>
-        <div className="text-[11px] mt-0.5 opacity-90">{detail}</div>
+        <div className="text-[12px] mt-0.5 opacity-90">{detail}</div>
       </div>
     </div>
   );
@@ -3628,7 +3877,7 @@ function ScorePredictor({ value, onChange, locked }) {
         </div>
         {value != null && (
           <div className="text-right leading-tight">
-            <div className="text-[10px] uppercase tracking-wider text-dim">Locked in</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">Locked in</div>
             <div className="display-num font-bold text-xl text-green">{fmtScoreToPar(value)}</div>
           </div>
         )}
@@ -3708,9 +3957,9 @@ function PicksClosedGate({ major }) {
         Rosters for {major.name} open <strong className="text-text">{major.picksOpenLabel}</strong>.
       </p>
       <div className="mt-4 inline-flex items-center gap-2 bg-black/[0.03] border border-line rounded-md px-3 py-2 text-xs">
-        <div className="text-[10px] uppercase tracking-wider text-dim">Opens in</div>
+        <div className="text-[11px] uppercase tracking-wider text-dim">Opens in</div>
         <div className="display-num font-bold text-base">{daysOut} <span className="text-sm font-medium text-muted">days</span></div>
-        <div className="text-[10px] text-dim">· lock at first tee time {major.teeTimeLabel}</div>
+        <div className="text-[11px] text-dim">· lock at first tee time {major.teeTimeLabel}</div>
       </div>
     </div>
   );
@@ -3753,7 +4002,7 @@ function PlayedList({ teamId, picks }) {
             className={`text-xs px-2 py-1 rounded-md inline-flex items-center gap-1.5 border ${isSub ? "bg-green/10 border-green/30 text-green" : "bg-white border-line text-muted"}`}>
             <CountryCode code={G[gid].country} />
             <span className={isSub ? "font-semibold text-text" : ""}>{G[gid].name}</span>
-            {isSub && <span className="text-[9px] uppercase tracking-wider text-green font-bold">subbed in</span>}
+            {isSub && <span className="text-[10px] uppercase tracking-wider text-green font-bold">subbed in</span>}
           </span>
         );
       })}
@@ -3775,15 +4024,17 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
         <div className="w-9 h-9 rounded-md bg-white border border-line group-hover:bg-green/10 group-hover:border-green/40 flex items-center justify-center text-lg text-dim">+</div>
         <div className="flex-1 text-left">
           <div className="font-semibold text-muted text-sm">Pick a {role}</div>
-          <div className="text-[11px] text-dim">Tap to choose a golfer</div>
+          <div className="text-[12px] text-dim">Tap to choose a golfer</div>
         </div>
         <span className="text-xs text-green hidden sm:inline">Choose →</span>
       </button>
     );
   }
 
-  // Background hint — barely-there tint, no border-color clash
-  const bg = isIn ? "rgba(43, 69, 53, 0.08)" : "rgba(184, 29, 29, 0.05)";
+  // Background hint — barely-there tint, no border-color clash. Uses the
+  // brighter pick-tab green at low opacity so it reads as a fresh wash rather
+  // than the muddy forest tone.
+  const bg = isIn ? "rgba(15, 122, 62, 0.06)" : "rgba(184, 29, 29, 0.05)";
 
   return (
     <div className={`rounded-lg px-3 sm:px-4 py-2.5 border border-line ${isMC ? "opacity-60" : ""}`} style={{ background: bg }}>
@@ -3800,12 +4051,12 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="font-semibold truncate text-sm sm:text-base">{g.name}</span>
-            {!isIn && <span className="text-[9px] font-bold uppercase tracking-wider text-red">OUT</span>}
+            {!isIn && <span className="text-[10px] font-bold uppercase tracking-wider text-red">OUT</span>}
             {earn && <ScorePill status={earn.status} position={earn.position} />}
             {earn && <ScoreNum score={earn.score} status={earn.status} />}
           </div>
           {earn && (
-            <div className="text-[10px] text-dim mt-0.5">
+            <div className="text-[11px] text-dim mt-0.5">
               {earn.thru && earn.status === "made_cut" && <>thru {earn.thru}</>}
               {major.status === "live"     && earn.status === "made_cut" && <> · projected</>}
               {major.status === "complete" && <>final</>}
@@ -3818,8 +4069,8 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
           <div className="hidden md:flex gap-3 shrink-0 text-center font-mono">
             {["r1Score","r2Score","r3Score","r4Score"].map((k,i) => (
               <div key={k} className="min-w-[26px]">
-                <div className="text-[9px] uppercase tracking-wider text-dim">R{i+1}</div>
-                <div className="text-[12px] font-medium text-text">{earn[k] == null ? "—" : earn[k]}</div>
+                <div className="text-[10px] uppercase tracking-wider text-dim">R{i+1}</div>
+                <div className="text-[13px] font-medium text-text">{earn[k] == null ? "—" : earn[k]}</div>
               </div>
             ))}
           </div>
@@ -3831,20 +4082,20 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
             {total === null ? "—" : fmt(total)}
           </div>
           {role === "bench" && total > 0 && major.status !== "complete" && (
-            <div className="text-[9px] uppercase tracking-wider text-dim">uncounted</div>
+            <div className="text-[10px] uppercase tracking-wider text-dim">uncounted</div>
           )}
         </div>
 
         {/* Action — only one button at a time, no double-action clutter */}
         <div className="shrink-0">
           {canSub && (
-            <button onClick={onSub} className="text-[11px] font-semibold rounded-md px-2.5 py-1.5 transition-colors whitespace-nowrap"
+            <button onClick={onSub} className="text-[12px] font-semibold rounded-md px-2.5 py-1.5 transition-colors whitespace-nowrap"
               style={{ color: "#074a23", background: "rgba(7, 74, 35, 0.18)", border: "1px solid rgba(7, 74, 35, 0.75)" }}>
               Sub in
             </button>
           )}
           {canSubOut && (
-            <button onClick={onSubOut} className="text-[11px] font-semibold text-red rounded-md px-2.5 py-1.5 transition-colors whitespace-nowrap"
+            <button onClick={onSubOut} className="text-[12px] font-semibold text-red rounded-md px-2.5 py-1.5 transition-colors whitespace-nowrap"
               style={{ background: "rgba(184, 29, 29, 0.10)", border: "1px solid rgba(184, 29, 29, 0.55)" }}>
               Sub out
             </button>
@@ -3871,10 +4122,10 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
 
       {/* Mobile: round-by-round strokes, tight inline row */}
       {earn && earn.status === "made_cut" && (
-        <div className="md:hidden mt-2 flex justify-around text-center font-mono text-[11px] text-dim border-t border-line/50 pt-2">
+        <div className="md:hidden mt-2 flex justify-around text-center font-mono text-[12px] text-dim border-t border-line/50 pt-2">
           {["r1Score","r2Score","r3Score","r4Score"].map((k,i) => (
             <div key={k}>
-              <span className="text-[9px] uppercase tracking-wider">R{i+1}</span>
+              <span className="text-[10px] uppercase tracking-wider">R{i+1}</span>
               <span className="ml-1.5 text-text font-medium">{earn[k] == null ? "—" : earn[k]}</span>
             </div>
           ))}
@@ -3915,9 +4166,9 @@ function ChatPanel({ user, messages, onSend }) {
       <header className="px-4 py-3 border-b border-line flex items-center justify-between">
         <div>
           <h3 className="font-bold text-base">League Chat</h3>
-          <div className="text-[11px] text-dim">{TEAMS.length} members · {sorted.length} messages</div>
+          <div className="text-[12px] text-dim">{TEAMS.length} members · {sorted.length} messages</div>
         </div>
-        <div className="text-[10px] uppercase tracking-wider text-dim">Live</div>
+        <div className="text-[11px] uppercase tracking-wider text-dim">Live</div>
       </header>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {sorted.map((m, i) => {
@@ -3943,7 +4194,7 @@ function Message({ message, isMe, groupWithPrev }) {
       <div className="w-7 shrink-0">{!groupWithPrev && <TeamBadge team={team} size="sm" />}</div>
       <div className={`min-w-0 max-w-[78%] ${isMe ? "items-end" : "items-start"} flex flex-col`}>
         {!groupWithPrev && (
-          <div className={`text-[11px] text-dim mb-0.5 ${isMe ? "text-right" : ""}`}>
+          <div className={`text-[12px] text-dim mb-0.5 ${isMe ? "text-right" : ""}`}>
             <span className="font-semibold text-muted">{team.name}</span>
             <span className="ml-1.5">· {time}</span>
           </div>
@@ -4043,13 +4294,13 @@ function TourLeaderboardPanel({ picks, user }) {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-bold text-base">{live.name}</h3>
-            <div className="text-[11px] text-dim">{live.course} · R{live.currentRound || 1} · {totalCount} in field</div>
+            <div className="text-[12px] text-dim">{live.course} · R{live.currentRound || 1} · {totalCount} in field</div>
           </div>
-          <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-red-500/10 text-red border border-red-500/30 inline-flex items-center gap-1">
+          <span className="text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-red-500/10 text-red border border-red-500/30 inline-flex items-center gap-1">
             <span className="live-dot w-1.5 h-1.5 bg-red-500 rounded-full inline-block"/>Live
           </span>
         </div>
-        <div className="mt-2 flex items-center gap-1.5 text-[11px]">
+        <div className="mt-2 flex items-center gap-1.5 text-[12px]">
           <FilterButton value="all"    label="All players" />
           <FilterButton value="league" label="League picks" />
           <FilterButton value="mine"   label="My picks" />
@@ -4067,7 +4318,7 @@ function TourLeaderboardPanel({ picks, user }) {
         )}
         {players.map(p => <TourPlayerRow key={p.gid} player={p} owners={ownership[p.gid] || []} youId={user.id} majorId={live.id} />)}
       </div>
-      <div className="px-4 py-2 border-t border-line text-[10px] text-dim flex items-center gap-2">
+      <div className="px-4 py-2 border-t border-line text-[11px] text-dim flex items-center gap-2">
         <span className="flex -space-x-1">
           {TEAMS.slice(0,2).map(t => <span key={t.id} className="w-2.5 h-2.5 rounded-full border border-white" style={{ background: t.color }}/>)}
         </span>
@@ -4096,10 +4347,10 @@ function TourPlayerRow({ player, owners, youId, majorId }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className="font-medium truncate">{name}</span>
-            {isMine && <span className="text-[9px] uppercase tracking-wider text-green font-bold">YOURS</span>}
-            {!known && <span className="text-[9px] uppercase tracking-wider text-dim font-semibold" title="Not in your league's pickable roster">FIELD</span>}
+            {isMine && <span className="text-[10px] uppercase tracking-wider text-green font-bold">YOURS</span>}
+            {!known && <span className="text-[10px] uppercase tracking-wider text-dim font-semibold" title="Not in your league's pickable roster">FIELD</span>}
           </div>
-          <div className="text-[10px] text-dim flex items-center gap-1.5">
+          <div className="text-[11px] text-dim flex items-center gap-1.5">
             <span>{country}</span>
             {player.thru && player.status === "made_cut" && <span>· thru {player.thru}</span>}
           </div>
@@ -4140,20 +4391,20 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
   }, [majorId, player.gid]);
 
   return (
-    <div className="bg-black/[0.025] border-b border-line px-4 py-3 text-[12px]">
+    <div className="bg-black/[0.025] border-b border-line px-4 py-3 text-[13px]">
       {loading && <div className="text-dim italic">Loading stats from DataGolf…</div>}
       {error && !loading && (
-        <div className="text-red text-[11px]">
+        <div className="text-red text-[12px]">
           Stats unavailable: {error}
-          <div className="text-dim mt-0.5 text-[10px]">DataGolf may not have data for this player at this event, or the backend hasn't been redeployed yet.</div>
+          <div className="text-dim mt-0.5 text-[11px]">DataGolf may not have data for this player at this event, or the backend hasn't been redeployed yet.</div>
         </div>
       )}
       {data && !loading && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Round-by-round */}
           <StatBlock title="Round-by-round">
-            <table className="w-full text-[11px]">
-              <thead className="text-dim uppercase tracking-wider text-[9px]">
+            <table className="w-full text-[12px]">
+              <thead className="text-dim uppercase tracking-wider text-[10px]">
                 <tr>
                   <th className="text-left font-semibold pb-1">Round</th>
                   <th className="text-right font-semibold pb-1">Strokes</th>
@@ -4174,7 +4425,7 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
                 ))}
               </tbody>
             </table>
-            <div className="text-[9px] text-dim mt-1.5">Strokes from DataGolf · $ = projected money snapshotted at end of round</div>
+            <div className="text-[10px] text-dim mt-1.5">Strokes from DataGolf · $ = projected money snapshotted at end of round</div>
           </StatBlock>
 
           {/* Tournament SG */}
@@ -4205,7 +4456,7 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
                 <StatRow label="SG Putting"     value={data.season.sgPutt}/>
               </>
             ) : (
-              <div className="text-dim text-[11px] italic">Season totals not available (DataGolf endpoint may not be in your subscription tier).</div>
+              <div className="text-dim text-[12px] italic">Season totals not available (DataGolf endpoint may not be in your subscription tier).</div>
             )}
           </StatBlock>
         </div>
@@ -4217,7 +4468,7 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
 function StatBlock({ title, children }) {
   return (
     <div className="bg-white border border-line rounded-lg p-2.5">
-      <div className="text-[9px] uppercase tracking-wider text-dim font-semibold mb-1.5">{title}</div>
+      <div className="text-[10px] uppercase tracking-wider text-dim font-semibold mb-1.5">{title}</div>
       <div>{children}</div>
     </div>
   );
@@ -4229,7 +4480,7 @@ function StatRow({ label, value, unit, digits = 2, signed = true }) {
     ? `${signed && value > 0 ? "+" : ""}${value.toFixed(digits)}${unit ? ` ${unit}` : ""}`
     : "—";
   return (
-    <div className="flex items-baseline justify-between py-0.5 text-[11px]">
+    <div className="flex items-baseline justify-between py-0.5 text-[12px]">
       <span className="text-muted">{label}</span>
       <span className={`font-semibold tabular-nums ${isNum && signed ? (value > 0 ? "text-green" : value < 0 ? "text-red" : "text-text") : "text-text"}`}>{fmt}</span>
     </div>
@@ -4259,9 +4510,9 @@ function EmptyLiveState({ major }) {
           {major.name} scoring populates from <strong className="text-text">{src?.name}</strong> via your backend scraper. Until that's connected, there's nothing live to show — picks still work, but team totals read $0.
         </p>
         <div className="mt-5 inline-flex flex-col items-start gap-1 text-left bg-black/[0.03] border border-line rounded-lg p-3 text-xs">
-          <div className="text-[10px] uppercase tracking-wider text-dim">Production wiring</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim">Production wiring</div>
           <code className="font-mono text-text">GET /api/leaderboard/{major.id}</code>
-          <div className="text-[11px] text-dim">backend scrapes {src?.leaderboardUrl}</div>
+          <div className="text-[12px] text-dim">backend scrapes {src?.leaderboardUrl}</div>
         </div>
       </div>
     </div>
@@ -4345,7 +4596,7 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
           <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${viewed.scene}`}>
             <div className="absolute inset-0 dot-grid opacity-40"/>
             <div className="relative p-5 sm:p-6">
-              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-dim">
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-dim">
                 {isLive ? (
                   <span className="inline-flex items-center gap-1.5">
                     <span className="relative inline-block w-2 h-2"><span className="absolute inset-0 bg-red-400 rounded-full live-dot"/><span className="absolute inset-0 bg-red-400 rounded-full opacity-50 live-glow"/></span>
@@ -4360,7 +4611,7 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-5 items-end">
                 <div className="sm:col-span-2">
-                  <div className="text-[10px] uppercase tracking-wider text-dim">{isLive ? "Leading the major" : "Won the major"}</div>
+                  <div className="text-[11px] uppercase tracking-wider text-dim">{isLive ? "Leading the major" : "Won the major"}</div>
                   <div className="flex items-center gap-3 mt-2">
                     <TeamBadge team={leader.team} size="xl" />
                     <div>
@@ -4370,7 +4621,7 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wider text-dim">{isLive ? "Projected" : "Final earnings"}</div>
+                  <div className="text-[11px] uppercase tracking-wider text-dim">{isLive ? "Projected" : "Final earnings"}</div>
                   <div className="display-num font-bold text-3xl sm:text-4xl shimmer-text">{fmtFull(leader.total)}</div>
                   <div className="text-xs text-green mt-1">+{fmt(leader.total - (rows[1]?.total ?? 0))} {isLive ? "ahead" : "margin"}</div>
                 </div>
@@ -4435,11 +4686,11 @@ function ScorePredictionsPanel({ picks, majorId }) {
           const diff = leaderScore != null ? Math.abs(p.pick - leaderScore) : null;
           return (
             <div key={p.team.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white border border-line">
-              <span className="text-[10px] uppercase tracking-wider text-dim w-5 font-mono">#{i+1}</span>
+              <span className="text-[11px] uppercase tracking-wider text-dim w-5 font-mono">#{i+1}</span>
               <TeamBadge team={p.team} size="sm" />
               <span className="flex-1 font-medium truncate">{p.team.name}</span>
               <span className="display-num font-bold text-base text-text">{fmtScoreToPar(p.pick)}</span>
-              {diff != null && <span className="text-[10px] text-dim font-mono w-12 text-right">{diff === 0 ? "spot on" : `±${diff}`}</span>}
+              {diff != null && <span className="text-[11px] text-dim font-mono w-12 text-right">{diff === 0 ? "spot on" : `±${diff}`}</span>}
             </div>
           );
         })}
@@ -4480,7 +4731,7 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
       <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${major.scene}`}>
         <div className="absolute inset-0 dot-grid opacity-40"/>
         <div className="relative p-6 sm:p-8">
-          <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-dim mb-3">
+          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-dim mb-3">
             <span className="inline-flex items-center gap-1.5">
               <span className={`live-dot w-1.5 h-1.5 rounded-full inline-block ${picksOpen ? "bg-green" : "bg-gold"}`}/>
               {picksOpen ? "Picks are open" : "Picks open soon"}
@@ -4498,15 +4749,15 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
           <div className="mt-5 grid grid-cols-3 gap-3 max-w-md">
             <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
               <div className="display-num font-bold text-2xl">{days}</div>
-              <div className="text-[10px] uppercase tracking-wider text-dim">days</div>
+              <div className="text-[11px] uppercase tracking-wider text-dim">days</div>
             </div>
             <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
               <div className="display-num font-bold text-2xl">{hours}</div>
-              <div className="text-[10px] uppercase tracking-wider text-dim">hours</div>
+              <div className="text-[11px] uppercase tracking-wider text-dim">hours</div>
             </div>
             <div className="bg-white/80 border border-line rounded-lg px-3 py-2.5 text-center">
               <div className="display-num font-bold text-2xl">{minutes}</div>
-              <div className="text-[10px] uppercase tracking-wider text-dim">minutes</div>
+              <div className="text-[11px] uppercase tracking-wider text-dim">minutes</div>
             </div>
           </div>
 
@@ -4527,14 +4778,14 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
             <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-green/8 border border-green/25">
               <TeamBadge team={t} size="sm" />
               <span className="flex-1 text-sm font-medium truncate">{t.name}</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-green">In</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-green">In</span>
             </div>
           ))}
           {pendingTeams.map(t => (
             <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-black/[0.03] border border-line">
               <TeamBadge team={t} size="sm" />
               <span className="flex-1 text-sm font-medium truncate">{t.name}</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-dim">Pending</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-dim">Pending</span>
             </div>
           ))}
         </div>
@@ -4591,11 +4842,11 @@ function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) 
             <span className="font-semibold text-sm">{m.name}</span>
             <StatusBadge status={m.status} />
           </div>
-          <div className="text-[11px] text-dim mt-0.5">{m.start}–{m.end} · {m.course}</div>
+          <div className="text-[12px] text-dim mt-0.5">{m.start}–{m.end} · {m.course}</div>
         </div>
         {li && (
           <div className="text-right shrink-0 leading-tight">
-            <div className="text-[10px] uppercase tracking-wider text-dim">{li.label}</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">{li.label}</div>
             <div className="text-xs font-semibold text-green truncate max-w-[120px]" style={{ color: "#2b4535" }}>{li.name}</div>
           </div>
         )}
@@ -4618,7 +4869,7 @@ function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) 
         </div>
         {currentLi && (
           <div className="text-right shrink-0 leading-tight hidden sm:block">
-            <div className="text-[10px] uppercase tracking-wider text-dim">{currentLi.label}</div>
+            <div className="text-[11px] uppercase tracking-wider text-dim">{currentLi.label}</div>
             <div className="font-semibold text-sm truncate max-w-[140px]" style={{ color: "#2b4535" }}>{currentLi.name}</div>
           </div>
         )}
@@ -4650,7 +4901,7 @@ function LiveTeamRow({ row, rank, majorId, leader }) {
             <span className="font-semibold truncate">{row.team.name}</span>
             {/* Desktop: sub badge inline next to name */}
             {hasSubs && (
-              <span className="hidden sm:inline-block text-[9px] font-bold uppercase tracking-wider text-green bg-green/12 border border-green/30 rounded px-1.5 py-0.5">
+              <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider text-green bg-green/12 border border-green/30 rounded px-1.5 py-0.5">
                 {subs.length} sub{subs.length > 1 ? "s" : ""}
               </span>
             )}
@@ -4661,10 +4912,10 @@ function LiveTeamRow({ row, rank, majorId, leader }) {
         </div>
         <div className="text-right shrink-0">
           <div className="display-num font-bold text-lg">{fmtFull(row.total)}</div>
-          <div className="text-[10px] uppercase tracking-wider text-dim">{rank === 1 ? "leading" : fmt(row.total - leader) + " behind"}</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim">{rank === 1 ? "leading" : fmt(row.total - leader) + " behind"}</div>
           {/* Mobile: sub badge under the leading/behind line */}
           {hasSubs && (
-            <span className="sm:hidden inline-block mt-1 text-[9px] font-bold uppercase tracking-wider text-green bg-green/12 border border-green/30 rounded px-1.5 py-0.5">
+            <span className="sm:hidden inline-block mt-1 text-[10px] font-bold uppercase tracking-wider text-green bg-green/12 border border-green/30 rounded px-1.5 py-0.5">
               {subs.length} sub{subs.length > 1 ? "s" : ""}
             </span>
           )}
@@ -4677,30 +4928,30 @@ function LiveTeamRow({ row, rank, majorId, leader }) {
         <div className="border-t border-line p-4 bg-black/[0.04]">
           {hasSubs && (
             <div className="mb-3 rounded-lg bg-green/8 border border-green/25 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wider text-green font-semibold mb-1">Subs this week</div>
+              <div className="text-[11px] uppercase tracking-wider text-green font-semibold mb-1">Subs this week</div>
               <div className="space-y-1">
                 {subs.map((s, i) => {
                   const out = G[s.out], inn = G[s.in];
                   return (
-                    <div key={i} className="flex items-center gap-2 text-[12px]">
+                    <div key={i} className="flex items-center gap-2 text-[13px]">
                       <span className="font-medium text-text">{inn?.name || s.in}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-green">IN</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-green">IN</span>
                       <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M3 8h10M9 4l4 4-4 4"/>
                       </svg>
                       <span className="font-medium text-dim line-through">{out?.name || s.out}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-red">OUT</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-red">OUT</span>
                     </div>
                   );
                 })}
               </div>
             </div>
           )}
-          <div className="text-[10px] uppercase tracking-wider text-dim mb-2">Starters</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim mb-2">Starters</div>
           <div className="space-y-1">
             {row.starters.map(gid => gid && <LiveLineItem key={gid} golferId={gid} majorId={majorId} slot={row.slot} role="starter" />)}
           </div>
-          <div className="text-[10px] uppercase tracking-wider text-dim mt-3 mb-2">Bench · {fmt(row.lob)} left on base</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim mt-3 mb-2">Bench · {fmt(row.lob)} left on base</div>
           <div className="space-y-1">
             {row.bench.map(gid => gid && <LiveLineItem key={gid} golferId={gid} majorId={majorId} slot={row.slot} role="bench" />)}
           </div>
@@ -4730,9 +4981,9 @@ function LiveLineItem({ golferId, majorId, slot, role }) {
       }>
       <CountryCode code={g.country} className="w-8" />
       <span className={`flex-1 text-sm ${subbedOut ? "line-through text-dim" : ""}`}>{g.name}</span>
-      {subbedOut && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+      {subbedOut && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
         style={{ color: "#b81d1d", background: "rgba(184, 29, 29, 0.18)", border: "1px solid rgba(184, 29, 29, 0.55)" }}>OUT</span>}
-      {subbedIn  && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+      {subbedIn  && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
         style={{ color: "#2b4535", background: "rgba(43, 69, 53, 0.22)", border: "1px solid rgba(43, 69, 53, 0.65)" }}>IN</span>}
       {earn && <ScorePill status={earn.status} position={earn.position} />}
       {earn && <ScoreNum score={earn.score} status={earn.status} />}
@@ -4776,7 +5027,7 @@ function LeaderboardTab({ picks, viewAs }) {
     <div className="space-y-6">
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div>
-          <h2 className="font-bold text-2xl tracking-tight">Overall Standings</h2>
+          <h2 className="font-bold text-2xl tracking-tight">Season Standings</h2>
           <div className="text-xs text-dim mt-0.5">Cumulative earnings across all four majors</div>
         </div>
         {liveId && (
@@ -4792,7 +5043,7 @@ function LeaderboardTab({ picks, viewAs }) {
           <StandingsRow key={row.team.id} row={row} idx={idx} viewAs={viewAs} picks={picks} />
         ))}
       </div>
-      <div className="text-[11px] text-dim px-1">
+      <div className="text-[12px] text-dim px-1">
         <span className="font-semibold uppercase tracking-wider text-muted">Tiebreakers</span> · ties broken by (1) highest total among original starters, then (2) Left on Base.
       </div>
 
@@ -4834,21 +5085,21 @@ function StandingsRow({ row, idx, viewAs, picks }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-semibold truncate">{row.team.name}</span>
-            {isLead && <span className="text-[9px] px-1.5 py-0.5 rounded bg-gold text-bg2 font-bold">LEAD</span>}
-            {isMe && !isLead && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green/20 text-green font-semibold">YOU</span>}
+            {isLead && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold text-bg2 font-bold">LEAD</span>}
+            {isMe && !isLead && <span className="text-[10px] px-1.5 py-0.5 rounded bg-green/20 text-green font-semibold">YOU</span>}
             {row.tiebreaker && (
               <span title={row.tiebreaker === "original-starters" ? "Won tiebreaker on original-starters total" : "Won tiebreaker on Left on Base"}
-                className="text-[9px] px-1.5 py-0.5 rounded bg-gold/15 text-gold border border-gold/30 font-semibold uppercase tracking-wider">
+                className="text-[10px] px-1.5 py-0.5 rounded bg-gold/15 text-gold border border-gold/30 font-semibold uppercase tracking-wider">
                 TB · {row.tiebreaker === "original-starters" ? "Original" : "LOB"}
               </span>
             )}
           </div>
         </div>
         <div className="text-right shrink-0 leading-tight">
-          <div className="text-[10px] uppercase tracking-wider text-dim">Total</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim">Total</div>
           <div className={`display-num font-bold text-base sm:text-lg ${isLead ? "text-gold" : "text-text"}`}>{fmtFull(row.total)}</div>
           {row.behind !== 0 && (
-            <div className="text-[11px] text-dim mt-0.5 font-mono">behind {fmt(row.behind)}</div>
+            <div className="text-[12px] text-dim mt-0.5 font-mono">behind {fmt(row.behind)}</div>
           )}
         </div>
         <svg viewBox="0 0 24 24" className={`w-4 h-4 text-dim shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -4884,10 +5135,10 @@ function StandingsMajorBlock({ major, teamId, totalForMajor, picks }) {
   return (
     <div className="bg-white border border-line rounded-md px-3 py-2">
       <div className="flex items-baseline justify-between gap-2">
-        <div className="flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-dim">
+        <div className="flex items-center gap-1.5 text-[12px] uppercase tracking-wider text-dim">
           <span className="font-semibold text-text">{major.short}</span>
           {major.status === "live" && <span className="live-dot w-1 h-1 bg-red-400 rounded-full inline-block"/>}
-          {major.status === "upcoming" && <span className="text-[9px] text-dim">picks open {major.picksOpenLabel}</span>}
+          {major.status === "upcoming" && <span className="text-[10px] text-dim">picks open {major.picksOpenLabel}</span>}
         </div>
         <div className={`font-mono font-semibold text-sm ${major.status==="live" ? "text-gold" : "text-text"}`}>
           {totalForMajor === 0 && major.status === "upcoming"
@@ -4896,7 +5147,7 @@ function StandingsMajorBlock({ major, teamId, totalForMajor, picks }) {
         </div>
       </div>
       {major.status !== "upcoming" && playedNames.length > 0 && (
-        <div className="text-[11px] text-muted mt-1 leading-snug">
+        <div className="text-[12px] text-muted mt-1 leading-snug">
           {playedNames.join(" · ")}
         </div>
       )}
@@ -4933,15 +5184,15 @@ function LocksWidget({ picks, viewAs }) {
                 <div className="text-right">
                   {open ? (
                     <>
-                      <div className="text-[10px] uppercase tracking-wider text-dim">Locks in</div>
+                      <div className="text-[11px] uppercase tracking-wider text-dim">Locks in</div>
                       <div className="display-num font-bold text-xl text-gold">{locksIn} <span className="text-sm font-medium text-muted">days</span></div>
-                      <div className="text-[10px] text-dim">{m.teeTimeLabel}</div>
+                      <div className="text-[11px] text-dim">{m.teeTimeLabel}</div>
                     </>
                   ) : (
                     <>
-                      <div className="text-[10px] uppercase tracking-wider text-dim">Picks open in</div>
+                      <div className="text-[11px] uppercase tracking-wider text-dim">Picks open in</div>
                       <div className="display-num font-bold text-xl text-text">{opensIn} <span className="text-sm font-medium text-muted">days</span></div>
-                      <div className="text-[10px] text-dim">{m.picksOpenLabel}</div>
+                      <div className="text-[11px] text-dim">{m.picksOpenLabel}</div>
                     </>
                   )}
                 </div>
@@ -4950,7 +5201,7 @@ function LocksWidget({ picks, viewAs }) {
               {open ? (
                 <>
                   <div className="mt-3 flex items-center gap-2 flex-wrap">
-                    <div className="text-[10px] uppercase tracking-wider text-dim">Submitted</div>
+                    <div className="text-[11px] uppercase tracking-wider text-dim">Submitted</div>
                     <div className="flex gap-1">
                       {submitted.map(t => (
                         <span key={t.id} title={t.name + " · submitted"} className="inline-flex">
@@ -4968,11 +5219,11 @@ function LocksWidget({ picks, viewAs }) {
 
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <div className="bg-black/[0.04] border border-line rounded-md px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-wider text-dim">Your picks</div>
+                      <div className="text-[11px] uppercase tracking-wider text-dim">Your picks</div>
                       <div className={`text-sm font-semibold ${mine ? "text-green" : "text-gold"}`}>{mine ? "Submitted" : "Not submitted"}</div>
                     </div>
                     <div className="bg-black/[0.04] border border-line rounded-md px-3 py-2">
-                      <div className="text-[10px] uppercase tracking-wider text-dim">Other teams' picks</div>
+                      <div className="text-[11px] uppercase tracking-wider text-dim">Other teams' picks</div>
                       <div className="text-sm font-semibold text-muted flex items-center gap-1.5">
                         <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5 7V5a3 3 0 016 0v2"/></svg>
                         Locked until tee time
@@ -4989,7 +5240,7 @@ function LocksWidget({ picks, viewAs }) {
           );
         })}
       </div>
-      <div className="text-[11px] text-dim mt-3">
+      <div className="text-[12px] text-dim mt-3">
         Privacy is enforced server-side: even if someone inspected the network, the API doesn't return other teams' rosters until the major's first tee time has passed.
       </div>
     </div>
@@ -5077,7 +5328,7 @@ function ProfileTab({ user, onSave, onBack }) {
               </button>
             )}
             <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden"/>
-            <div className="text-[11px] text-dim">JPG, PNG, or GIF. Under 900KB.</div>
+            <div className="text-[12px] text-dim">JPG, PNG, or GIF. Under 900KB.</div>
           </div>
         </div>
       </ProfileSection>
@@ -5115,7 +5366,7 @@ function ProfileTab({ user, onSave, onBack }) {
         </form>
       </ProfileSection>
 
-      <div className="text-[11px] text-dim text-center">
+      <div className="text-[12px] text-dim text-center">
         Changes save to this browser only. In production they'd write through to your Supabase user record.
       </div>
     </div>
@@ -5137,10 +5388,10 @@ function ProfileSection({ title, hint, children }) {
 function ProfileField({ label, value, onChange, type = "text", placeholder, sub }) {
   return (
     <div>
-      <label className="block text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">{label}</label>
+      <label className="block text-[12px] uppercase tracking-wider text-dim font-semibold mb-1">{label}</label>
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
         className="w-full bg-white border border-line rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green/30 placeholder-dim text-text" />
-      {sub && <div className="text-[11px] text-dim mt-1">{sub}</div>}
+      {sub && <div className="text-[12px] text-dim mt-1">{sub}</div>}
     </div>
   );
 }
@@ -5187,7 +5438,7 @@ function LeagueTab() {
           <Rule n="3" t="Left on Base">Bench earnings show as <em>Left on Base</em> — what you could have made.</Rule>
           <Rule n="4" t="Substitutions">A bench player may be <strong className="text-text">subbed in</strong> during a major (e.g., starter missed cut). When subbed in, they replace a starter and are now played for the year.</Rule>
           <Rule n="5" t="One pick per season">Each golfer can only be played once per season across all majors. Bench players who are never subbed in stay available.</Rule>
-          <Rule n="6" t="Season winner">Overall Season Winner is the team with the highest cumulative earnings across all four majors, decided after The Open.</Rule>
+          <Rule n="6" t="Season winner">The Season Winner is the team with the highest cumulative earnings across all four majors, decided after The Open.</Rule>
         </div>
       </div>
     </div>
@@ -5196,7 +5447,7 @@ function LeagueTab() {
 function KV({ k, v }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-dim">{k}</div>
+      <div className="text-[11px] uppercase tracking-wider text-dim">{k}</div>
       <div className="font-semibold mt-0.5">{v}</div>
     </div>
   );
@@ -5278,8 +5529,8 @@ function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onCl
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-green/10 active:bg-green/15"}`}>
         <CountryCode code={g.country} className="w-9" />
         <span className="flex-1 font-medium">{g.name}</span>
-        {locked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/[0.04] text-dim font-semibold whitespace-nowrap">Played earlier</span>}
-        {lineup && !locked && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gold/15 text-gold font-semibold border border-gold/30 whitespace-nowrap">In lineup</span>}
+        {locked && <span className="text-[11px] px-1.5 py-0.5 rounded bg-black/[0.04] text-dim font-semibold whitespace-nowrap">Played earlier</span>}
+        {lineup && !locked && <span className="text-[11px] px-1.5 py-0.5 rounded bg-gold/15 text-gold font-semibold border border-gold/30 whitespace-nowrap">In lineup</span>}
       </button>
     );
   };
@@ -5294,18 +5545,18 @@ function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onCl
     <Modal title={`Pick a ${state.slotType === "starter" ? "starter" : "bench player"} — ${major.short}`} onClose={onClose}>
       <div className="text-xs text-dim mb-3 flex items-center justify-between">
         <span>{fieldCount} golfers in the field · sorted A–Z</span>
-        <span className="text-[10px] uppercase tracking-wider text-dim">{sourceLabel}</span>
+        <span className="text-[11px] uppercase tracking-wider text-dim">{sourceLabel}</span>
       </div>
       <div className="max-h-[65vh] overflow-y-auto -mx-2 pb-2">
         {grouped.length === 0 && (
           <div className="text-sm text-dim px-3 py-6 text-center">
             <div className="font-semibold mb-1">Field hasn't been published yet</div>
-            <div className="text-[11px]">It'll auto-load as soon as DataGolf has the {major.short} field.</div>
+            <div className="text-[12px]">It'll auto-load as soon as DataGolf has the {major.short} field.</div>
           </div>
         )}
         {grouped.map(([letter, players]) => (
           <div key={letter}>
-            <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-dim font-bold border-b border-line z-10">{letter}</div>
+            <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-3 py-1 text-[11px] uppercase tracking-[0.18em] text-dim font-bold border-b border-line z-10">{letter}</div>
             {players.map(renderRow)}
           </div>
         ))}
@@ -5328,7 +5579,7 @@ function SubInModal({ benchIndex, teamId, majorId, picks, onConfirm, onClose }) 
     <Modal title={`Sub in ${bench?.name}`} onClose={onClose}>
       {/* Bench player being brought in */}
       <div className="mb-3 p-3 rounded-lg bg-green/8 border border-green/30 text-xs">
-        <div className="text-[10px] uppercase tracking-wider text-green font-bold mb-1">Bringing in</div>
+        <div className="text-[11px] uppercase tracking-wider text-green font-bold mb-1">Bringing in</div>
         <div className="flex items-center gap-2">
           <CountryCode code={bench.country} className="w-8"/>
           <span className="font-semibold text-sm flex-1 text-text">{bench.name}</span>
@@ -5404,7 +5655,7 @@ function SubOutModal({ starterIndex, teamId, majorId, picks, onConfirm, onClose 
       {/* Starter sitting out */}
       {starterEarn && (
         <div className="mb-3 p-3 rounded-lg bg-black/[0.03] border border-line text-xs">
-          <div className="text-[10px] uppercase tracking-wider text-dim mb-1">Sitting out</div>
+          <div className="text-[11px] uppercase tracking-wider text-dim mb-1">Sitting out</div>
           <div className="flex items-center gap-2">
             <CountryCode code={starter.country} className="w-8" />
             <span className="font-semibold text-sm flex-1 text-text">{starter.name}</span>
