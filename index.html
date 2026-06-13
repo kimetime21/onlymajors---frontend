@@ -1088,6 +1088,14 @@ async function apiKickMember(leagueId, teamId) {
   if (!res.ok) throw new Error(data.error || `kick HTTP ${res.status}`);
   return data;
 }
+async function apiDeleteLeague(leagueId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/leagues/${leagueId}`, {
+    method: "DELETE",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `delete league HTTP ${res.status}`);
+  return data;
+}
 
 // Fetches the full field for a major from the backend (which pulls from DataGolf).
 // Returns { count, source, players: [{gid, name, country, dg_id, matched}] }.
@@ -1338,27 +1346,51 @@ function App() {
   // Hydrate picks from server. Re-runs when activeLeagueId changes so switching
   // leagues from the Hub pulls down that league's picks. Server is source of
   // truth; localStorage is just an offline cache for first-paint speed.
+  // Also registers the active league's team in the TEAMS array and skeleton-
+  // initializes picks for it — otherwise non-EXPERTS leagues crash the
+  // in-league app on enter because their team_ids aren't in the hardcoded
+  // PICKS / TEAMS data.
   useEffect(() => {
     if (!activeLeagueId) return;
+
+    const activeLeague = leagues.find(l => l.id === activeLeagueId);
+    if (activeLeague?.teamId && !TEAMS.some(t => t.id === activeLeague.teamId)) {
+      TEAMS.push({
+        id:    activeLeague.teamId,
+        name:  activeLeague.teamName || "My Team",
+        owner: authedUser?.displayName || "",
+        email: authedUser?.email || "",
+        color: activeLeague.teamColor || "#3A5F8A",
+        mono:  (activeLeague.teamName || "MT").slice(0, 2).toUpperCase(),
+      });
+    }
+    const skeletonForTeam = () => {
+      const out = {};
+      for (const m of MAJORS) {
+        out[m.id] = { starters: [null, null, null, null], bench: [null, null], subs: [], submitted: false };
+      }
+      return out;
+    };
+
     fetchAllPicks(activeLeagueId).then(server => {
+      const merged = JSON.parse(JSON.stringify(PICKS));
+      if (activeLeague?.teamId && !merged[activeLeague.teamId]) {
+        merged[activeLeague.teamId] = skeletonForTeam();
+      }
       if (server && Object.keys(server).length > 0) {
-        const merged = JSON.parse(JSON.stringify(PICKS));
         for (const teamId of Object.keys(server)) {
+          if (!merged[teamId]) merged[teamId] = skeletonForTeam();
           merged[teamId] = { ...(merged[teamId] || {}), ...server[teamId] };
         }
-        setPicksDraft(merged);
-        lastSavedPicksRef.current = JSON.parse(JSON.stringify(merged));
-      } else {
-        // Reset to skeleton when entering a fresh league with no picks yet.
-        setPicksDraft(PICKS);
-        lastSavedPicksRef.current = JSON.parse(JSON.stringify(PICKS));
       }
+      setPicksDraft(merged);
+      lastSavedPicksRef.current = JSON.parse(JSON.stringify(merged));
     }).catch(e => {
       console.warn("picks hydrate failed, using local state:", e.message);
       lastSavedPicksRef.current = JSON.parse(JSON.stringify(picksDraft));
     });
   // eslint-disable-next-line
-  }, [activeLeagueId]);
+  }, [activeLeagueId, leagues]);
 
   // Persist picks to localStorage on every change + push changed slots to server (debounced).
   useEffect(() => {
@@ -2755,6 +2787,29 @@ function LeagueSettingsModal({ league, members, myTeamId, onClose, onChanged }) 
 
           {error && <div className="text-[12px] text-red">{error}</div>}
           {info  && <div className="text-[12px] text-green">{info}</div>}
+
+          {/* Danger zone — delete the league */}
+          <div className="border-t border-line pt-4 mt-2">
+            <div className="text-[11px] uppercase tracking-wider text-red font-semibold mb-1">Danger zone</div>
+            <p className="text-[12px] text-muted leading-snug mb-2">
+              Permanently delete this league, its members, picks, chat and history. This can't be undone.
+            </p>
+            <button type="button" disabled={busy}
+              onClick={async () => {
+                if (!confirm(`Delete "${league.name}" forever? This wipes every pick and message in it.`)) return;
+                setBusy(true); setError("");
+                try {
+                  await apiDeleteLeague(league.id);
+                  onChanged?.();
+                  onClose?.();
+                } catch (e) { setError(e.message); }
+                finally { setBusy(false); }
+              }}
+              className="w-full font-semibold rounded-lg py-2 text-[13px] disabled:opacity-50 border-2 transition-colors hover:bg-red/10"
+              style={{ color: "var(--red)", borderColor: "var(--red)" }}>
+              Delete league
+            </button>
+          </div>
         </div>
       </div>
     </div>
