@@ -329,6 +329,19 @@ function daysUntilPicksOpen(major) {
   return Math.ceil(ms / (1000*60*60*24));
 }
 
+// teamsForLeague — returns only the TEAMS entries that belong to a given
+// league. EXPERTS (id=1) uses the original five hardcoded team_ids; all newer
+// leagues use the lg{leagueId}-u{userId} pattern so we can filter by prefix.
+const EXPERTS_TEAM_IDS = new Set(["thorne","larry","boo","caleb","austin"]);
+function teamsForLeague(leagueId) {
+  if (leagueId == null) return TEAMS;
+  if (leagueId === 1) return TEAMS.filter(t => EXPERTS_TEAM_IDS.has(t.id));
+  return TEAMS.filter(t => {
+    const m = /^lg(\d+)-u/.exec(t.id);
+    return m && Number(m[1]) === leagueId;
+  });
+}
+
 // --- TEAMS (the Experts league) ------------------------------------------
 const TEAMS = [
   { id: "thorne", name: "Team Thorne", owner: "Thorne", email: "thorne@onlymajors.com", mono: "TH", color: "#34d27a" },
@@ -1748,7 +1761,7 @@ function App() {
       <TopBar user={user} onSignOut={signOut} onSwitchUser={null} onResetPicks={resetPicks} onResetAll={resetAll}
         onOpenProfile={() => setTab("profile")} onOpenLeague={() => setTab("league")}
         onBackToHub={() => setActiveLeagueId(null)} multiLeague={true}
-        onOpenOnboarding={() => setOnboardingMode("manual")} />
+        onOpenOnboarding={() => setOnboardingMode("manual")} leagueId={activeLeagueId} />
       <TabBar tab={tab} setTab={setTab} />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 fade-in" key={tab}>
         {tab === "picks" && (
@@ -1759,7 +1772,7 @@ function App() {
         {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} />}
 
         {tab === "chat"        && <ChatTab user={user} picks={safePicks} messages={chatMessages} onSend={sendMessage} />}
-        {tab === "leaderboard" && <LeaderboardTab picks={safePicks} viewAs={viewAs} />}
+        {tab === "leaderboard" && <LeaderboardTab picks={safePicks} viewAs={viewAs} leagueId={activeLeagueId} />}
         {tab === "league"      && <LeagueTab />}
         {tab === "profile"     && <ProfileTab user={user} onSave={saveProfile} onBack={() => setTab("picks")} />}
       </main>
@@ -1826,7 +1839,7 @@ function compact(arr, len) { const o = arr.filter(x => x != null); while (o.leng
 /* =========================================================================
    TOP BAR + RUNNING SEASON TOTAL
    ========================================================================= */
-function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding }) {
+function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding, leagueId }) {
   const viewAs = user.id;
   const liveMajor = MAJORS.find(m => m.status === "live");
   const settled  = MAJORS.filter(m => m.status === "complete").reduce((s, m) => s + teamMajorTotal(viewAs, m.id), 0);
@@ -1851,7 +1864,7 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
               <div className="font-bold text-base sm:text-lg truncate">Experts PGA Fantasy <span className="text-muted font-medium">· 2026</span></div>
             </div>
           </button>
-          <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} onBackToHub={onBackToHub} multiLeague={multiLeague} onOpenOnboarding={onOpenOnboarding} />
+          <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} onBackToHub={onBackToHub} multiLeague={multiLeague} onOpenOnboarding={onOpenOnboarding} leagueId={leagueId} />
         </div>
 
         {/* Row 2 — full-width stats strip, even spacing across all four metrics */}
@@ -3401,7 +3414,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
 /* =========================================================================
    USER MENU (top right) — replaces TeamSelector
    ========================================================================= */
-function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding }) {
+function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding, leagueId }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
 
@@ -3415,8 +3428,9 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
   }, [open]);
 
   const sortedTeams = useMemo(() => {
-    return TEAMS.map(t => ({ ...t, total: teamSeasonTotal(t.id) })).sort((a,b) => b.total - a.total);
-  }, []);
+    return teamsForLeague(leagueId).map(t => ({ ...t, total: teamSeasonTotal(t.id) })).sort((a,b) => b.total - a.total);
+  // eslint-disable-next-line
+  }, [leagueId]);
   const rank = sortedTeams.findIndex(t => t.id === user.id) + 1;
 
   return (
@@ -5412,9 +5426,9 @@ function LiveLineItem({ golferId, majorId, slot, role }) {
 /* =========================================================================
    LEADERBOARD TAB
    ========================================================================= */
-function LeaderboardTab({ picks, viewAs }) {
+function LeaderboardTab({ picks, viewAs, leagueId }) {
   const rows = useMemo(() => {
-    const r = TEAMS.map(t => {
+    const r = teamsForLeague(leagueId).map(t => {
       const byMajor = {};
       let total = 0;
       MAJORS.forEach(m => { const v = teamMajorTotal(t.id, m.id, picks); byMajor[m.id] = v; total += v; });
