@@ -1040,6 +1040,15 @@ async function apiMe() {
   if (!res.ok) throw new Error(`me HTTP ${res.status}`);
   return await res.json();   // { user, leagues }
 }
+async function apiChangePassword({ currentPassword, newPassword }) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/auth/change-password`, {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `change-password HTTP ${res.status}`);
+  return data;
+}
 async function apiLeagueMembers(leagueId = 1) {
   const res = await fetch(`${ONLYMAJORS_API}/api/leagues/${leagueId}/members`);
   if (!res.ok) throw new Error(`members HTTP ${res.status}`);
@@ -5785,15 +5794,25 @@ function ProfileTab({ user, onSave, onBack }) {
     setTimeout(() => setAccountToast(""), 2500);
   };
 
-  const submitPassword = (e) => {
+  const [pwBusy, setPwBusy] = useState(false);
+  const submitPassword = async (e) => {
     e.preventDefault();
     setPwError(""); setPwOk("");
     if (!currentPw) return setPwError("Enter your current password.");
     if (newPw.length < 8) return setPwError("New password must be at least 8 characters.");
     if (newPw !== confirmPw) return setPwError("New passwords don't match.");
-    setCurrentPw(""); setNewPw(""); setConfirmPw("");
-    setPwOk("Password updated.");
-    setTimeout(() => setPwOk(""), 2800);
+    if (newPw === currentPw) return setPwError("New password must be different from current password.");
+    setPwBusy(true);
+    try {
+      await apiChangePassword({ currentPassword: currentPw, newPassword: newPw });
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      setPwOk("Password updated. Any other devices have been signed out.");
+      setTimeout(() => setPwOk(""), 4000);
+    } catch (err) {
+      setPwError(err.message || "Couldn't update password. Try again.");
+    } finally {
+      setPwBusy(false);
+    }
   };
 
   return (
@@ -5844,7 +5863,7 @@ function ProfileTab({ user, onSave, onBack }) {
       </ProfileSection>
 
       {/* Password */}
-      <ProfileSection title="Security" hint="In production this would be backed by Supabase auth; demo simulates the flow.">
+      <ProfileSection title="Security" hint="Changing your password signs out every other device you're logged in on.">
         <form onSubmit={submitPassword} className="space-y-3">
           <ProfileField label="Current password"  value={currentPw} onChange={setCurrentPw} type="password" placeholder="••••••••" />
           <ProfileField label="New password"      value={newPw}     onChange={setNewPw}     type="password" placeholder="At least 8 characters" />
@@ -5854,17 +5873,13 @@ function ProfileTab({ user, onSave, onBack }) {
               {pwError && <span className="text-red">{pwError}</span>}
               {pwOk && <span className="text-green">{pwOk}</span>}
             </span>
-            <button type="submit"
-              className="px-4 py-2 bg-green/10 text-green border border-green/30 rounded-lg text-sm font-semibold hover:bg-green/20 transition-colors">
-              Change password
+            <button type="submit" disabled={pwBusy}
+              className="px-4 py-2 bg-green/10 text-green border border-green/30 rounded-lg text-sm font-semibold hover:bg-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {pwBusy ? "Updating…" : "Change password"}
             </button>
           </div>
         </form>
       </ProfileSection>
-
-      <div className="text-[12px] text-dim text-center">
-        Changes save to this browser only. In production they'd write through to your Supabase user record.
-      </div>
     </div>
   );
 }
