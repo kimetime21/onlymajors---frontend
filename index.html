@@ -97,6 +97,22 @@
   .glow-green { box-shadow: 0 0 32px -10px rgba(15,122,62,0.35); }
   .glow-gold  { box-shadow: 0 0 24px -10px rgba(166,121,35,0.30); }
 
+  /* Outlined green pill with an inverted-color hover — at rest the pill is
+     transparent with green border + green text; on hover the pill fills with
+     green and the letters flip to the cream background color. */
+  .om-pill {
+    color: var(--green);
+    background: transparent;
+    border: 2px solid var(--green);
+    transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+  }
+  .om-pill:hover:not(:disabled) {
+    background: var(--green);
+    color: var(--bg-1);
+    border-color: var(--green);
+  }
+  .om-pill:disabled { opacity: 0.5; cursor: not-allowed; }
+
   .display-num {
     font-feature-settings: 'tnum' 1, 'ss01' 1;
     font-variant-numeric: tabular-nums;
@@ -1587,7 +1603,7 @@ function App() {
   // Multi-league user with no active selection → show the Hub (with onboarding overlay).
   if (!activeLeagueId) return (
     <>
-      <LeagueHub authedUser={authedUser} leagues={leagues} picks={picksDraft}
+      <LeagueHub authedUser={authedUser} leagues={leagues} picks={picksDraft} syncToken={syncToken}
         onEnterLeague={(id) => { setActiveLeagueId(id); setTab("picks"); }}
         onLeaguesChanged={(nextLeagues, nextActiveId) => {
           setLeagues(nextLeagues);
@@ -1866,7 +1882,7 @@ function LoginScreen({ onAuthed }) {
               <AuthField label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" />
               {error && <div className="text-[11px] text-red">{error}</div>}
               <button type="submit" disabled={loading}
-                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
                 {loading ? "Signing in…" : "Log in"}
               </button>
             </form>
@@ -1918,7 +1934,7 @@ function LoginScreen({ onAuthed }) {
               </div>
               {error && <div className="text-[11px] text-red">{error}</div>}
               <button type="submit" disabled={loading || !teamId}
-                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
                 {loading ? "Creating account…" : "Create account & claim team"}
               </button>
             </form>
@@ -1952,7 +1968,7 @@ function LoginScreen({ onAuthed }) {
               </div>
               {error && <div className="text-[11px] text-red">{error}</div>}
               <button type="submit" disabled={loading}
-                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
                 {loading ? "Creating league…" : "Create league"}
               </button>
             </form>
@@ -1972,8 +1988,7 @@ function LoginScreen({ onAuthed }) {
               </div>
               <button type="button"
                 onClick={() => { setMode("signup"); setError(""); }}
-                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm hover:bg-green/10"
-                style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm om-pill">
                 Claim your team
               </button>
               <button type="button"
@@ -2016,8 +2031,9 @@ function AuthField({ label, type, value, onChange, placeholder }) {
    with picks status, season standing, and live position. CTAs to join + start
    another league.
    ========================================================================= */
-function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSignOut, onOpenOnboarding }) {
+function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onLeaguesChanged, onSignOut, onOpenOnboarding }) {
   const [summary, setSummary] = useState(null);
+  const [archivesByLeague, setArchivesByLeague] = useState({});   // { [leagueId]: { years: [...] } }
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
   const [action, setAction]   = useState(null);   // null | 'join' | 'create'
@@ -2032,6 +2048,27 @@ function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSig
     return () => { cancelled = true; };
   }, []);
 
+  // Once we have the summary, fetch each league's archive in parallel so we
+  // can compute career stats. Failed fetches just leave that league's archive
+  // empty — they don't block the rest of the page.
+  useEffect(() => {
+    if (!summary?.leagues?.length) return;
+    let cancelled = false;
+    Promise.allSettled(
+      summary.leagues.map(entry =>
+        apiLeagueArchive(entry.league.id).then(r => [entry.league.id, r])
+      )
+    ).then(results => {
+      if (cancelled) return;
+      const next = {};
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) next[r.value[0]] = r.value[1];
+      }
+      setArchivesByLeague(next);
+    });
+    return () => { cancelled = true; };
+  }, [summary]);
+
   const refreshSummary = () => {
     setLoading(true);
     apiLeaguesSummary()
@@ -2039,6 +2076,65 @@ function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSig
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   };
+
+  // Aggregate career stats across every league the user is in:
+  //   - tournament avg/wins use archived years AND the current season's
+  //     completed majors (so the avg shifts after each finished tournament)
+  //   - overall avg/wins only count fully archived seasons
+  const careerStats = useMemo(() => {
+    if (!summary) return null;
+    let tournSum = 0, tournCount = 0, seasonSum = 0, seasonCount = 0;
+    let tournWins = 0, overallWins = 0;
+    const MIDS = ["masters","pga","usopen","open"];
+    for (const entry of summary.leagues) {
+      const myTeamId = entry.myTeam.teamId;
+      // Archived years
+      const archive = archivesByLeague[entry.league.id];
+      for (const yearEntry of (archive?.years || [])) {
+        const data = yearEntry.data || {};
+        const myTeam = (data.teams || []).find(t => t.teamId === myTeamId);
+        if (myTeam) {
+          for (const mid of MIDS) {
+            if (myTeam.byMajor?.[mid] != null) {
+              tournSum += Number(myTeam.byMajor[mid]) || 0;
+              tournCount++;
+            }
+          }
+          seasonSum += Number(myTeam.total) || 0;
+          seasonCount++;
+        }
+        for (const mid of MIDS) {
+          if (data.majorWinners?.[mid]?.teamId === myTeamId) tournWins++;
+        }
+        if (data.champion?.teamId === myTeamId) overallWins++;
+      }
+      // Current season's completed majors — fold them in so the avg updates
+      // each time a tournament finishes, even before the season closes.
+      for (const m of MAJORS) {
+        if (m.status !== "complete") continue;
+        const mine = teamMajorTotal(myTeamId, m.id, entry.picks);
+        tournSum  += mine;
+        tournCount++;
+        // Did I win this major within my league?
+        const teams = (entry.members || []).map(mem => ({
+          teamId: mem.teamId,
+          total:  teamMajorTotal(mem.teamId, m.id, entry.picks),
+        })).sort((a, b) => b.total - a.total);
+        if (teams[0]?.teamId === myTeamId && teams[0].total > 0) tournWins++;
+      }
+    }
+    return {
+      tournAvg:    tournCount  > 0 ? Math.round(tournSum  / tournCount)  : 0,
+      tournCount,
+      overallAvg:  seasonCount > 0 ? Math.round(seasonSum / seasonCount) : 0,
+      seasonCount,
+      tournWins,
+      overallWins,
+    };
+  // syncToken bumps whenever EARN hydration finishes so the current-season
+  // major totals flow into the stats once the leaderboard data lands.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summary, archivesByLeague, syncToken]);
 
   // Determine which major to surface picks status for on the cards.
   const activeMajor = useMemo(() => {
@@ -2078,10 +2174,8 @@ function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSig
       </header>
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 fade-in">
-        <div className="mb-6">
-          <h1 className="font-bold text-2xl tracking-tight">Hi{firstName ? `, ${firstName}` : ""}</h1>
-          <p className="text-sm text-muted mt-1">Pick a league to manage your picks.</p>
-        </div>
+        <ProfileStatsCard firstName={firstName} authedUser={authedUser}
+          summary={summary} stats={careerStats} />
 
         {loading && <div className="text-sm text-dim">Loading your leagues…</div>}
         {error   && <div className="text-sm text-red">Couldn't load leagues: {error}</div>}
@@ -2122,6 +2216,77 @@ function LeagueHub({ authedUser, leagues, onEnterLeague, onLeaguesChanged, onSig
           onJoined={(nextLeagueId) => { setAction(null); refreshSummary(); /* let user re-enter at their leisure */ }}
           onCreated={(league) => { setAction(null); refreshSummary(); }} />
       )}
+    </div>
+  );
+}
+
+// Career profile card on top of the Hub — shows greeting + 4 career stats:
+// tournament avg, overall avg, tournament wins, overall wins.
+function ProfileStatsCard({ firstName, authedUser, summary, stats }) {
+  const initials = (authedUser.displayName || authedUser.email || "?")
+    .split(/[\s@]/).filter(Boolean).map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
+  const leagueCount = summary?.leagues?.length || 0;
+  const subtitle = leagueCount > 0
+    ? `Career across ${leagueCount} league${leagueCount === 1 ? "" : "s"}`
+    : "Pick a league to start your career";
+  const hasStats = stats && (stats.tournCount > 0 || stats.seasonCount > 0 || stats.tournWins > 0 || stats.overallWins > 0);
+
+  return (
+    <div className="rounded-2xl border border-line-2 bg-white p-5 sm:p-6 mb-6">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0"
+          style={{ background: "var(--green)", color: "var(--bg-1)" }}>
+          {initials || "OM"}
+        </div>
+        <div className="min-w-0">
+          <div className="font-bold text-xl tracking-tight truncate">Hi{firstName ? `, ${firstName}` : ""}</div>
+          <div className="text-xs text-dim truncate">{subtitle}</div>
+        </div>
+      </div>
+
+      {hasStats ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <CareerStat
+            label="Tournament avg"
+            value={fmt(stats.tournAvg)}
+            sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
+          />
+          <CareerStat
+            label="Overall avg"
+            value={fmt(stats.overallAvg)}
+            sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
+          />
+          <CareerStat
+            label="Tournament wins"
+            value={String(stats.tournWins)}
+            sub={stats.tournWins === 1 ? "major championship" : "major championships"}
+            highlight={stats.tournWins > 0}
+          />
+          <CareerStat
+            label="Overall wins"
+            value={String(stats.overallWins)}
+            sub={stats.overallWins === 1 ? "season title" : "season titles"}
+            highlight={stats.overallWins > 0}
+          />
+        </div>
+      ) : (
+        <div className="text-xs text-dim italic">
+          Career stats will populate as your league archives load. Play a major and the tournament average updates automatically.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CareerStat({ label, value, sub, highlight }) {
+  return (
+    <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2.5">
+      <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{label}</div>
+      <div className="display-num font-bold text-lg mt-0.5 truncate"
+        style={highlight ? { color: "var(--gold)" } : {}}>
+        {value}
+      </div>
+      <div className="text-[10px] text-dim mt-0.5 truncate">{sub}</div>
     </div>
   );
 }
@@ -2450,8 +2615,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
             </div>
             {error && <div className="text-[11px] text-red">{error}</div>}
             <button type="submit" disabled={busy}
-              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10"
-              style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
               {busy ? "Creating…" : "Create league"}
             </button>
           </form>
@@ -2467,8 +2631,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
             <button onClick={() => navigator.clipboard?.writeText(createdLeague.league.code)}
               className="w-full text-sm text-dim hover:text-text font-semibold py-2">Copy code</button>
             <button onClick={onClose}
-              className="w-full font-semibold rounded-lg py-2.5 text-sm hover:bg-green/10"
-              style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill">
               Done
             </button>
           </div>
@@ -2494,8 +2657,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
               </div>
             )}
             <button onClick={onClose}
-              className="w-full font-semibold rounded-lg py-2.5 text-sm hover:bg-green/10"
-              style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill">
               Close
             </button>
           </div>
@@ -2858,14 +3020,12 @@ function OnboardingModal({ dismissible, onClose }) {
             <div className="flex-1" />
             {!isLast ? (
               <button onClick={() => setIdx(i => i + 1)}
-                className="px-5 py-2.5 text-sm font-semibold rounded-lg hover:bg-green/10 transition-colors"
-                style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                className="px-5 py-2.5 text-sm font-semibold rounded-lg transition-colors om-pill">
                 Next
               </button>
             ) : (
               <button onClick={onClose}
-                className="px-5 py-2.5 text-sm font-semibold rounded-lg hover:bg-green/10 transition-colors"
-                style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+                className="px-5 py-2.5 text-sm font-semibold rounded-lg transition-colors om-pill">
                 Get started
               </button>
             )}
@@ -4286,8 +4446,7 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
           </div>
 
           <button onClick={onGotoPicks}
-            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-green/10 transition-colors"
-            style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+            className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors om-pill">
             {picksOpen ? "Click here to lock in picks" : "Take a look at the field"}
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M5 12h14M13 6l6 6-6 6"/>
@@ -5151,7 +5310,7 @@ function SubInModal({ benchIndex, teamId, majorId, picks, onConfirm, onClose }) 
               <strong>{target.name}</strong> sits out — <strong className="text-green">{bench.name}</strong> takes the slot.
             </div>
             <button onClick={() => onConfirm(selectedIdx)}
-              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
               Lock it in
             </button>
           </>
@@ -5231,7 +5390,7 @@ function SubOutModal({ starterIndex, teamId, majorId, picks, onConfirm, onClose 
               <strong>{starter.name}</strong> sits out — <strong className="text-green">{incoming.name}</strong> takes the slot.
             </div>
             <button onClick={() => onConfirm(selectedIdx)}
-              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 hover:bg-green/10" style={{ color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }}>
+              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
               Lock it in
             </button>
           </>
