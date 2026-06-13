@@ -1202,6 +1202,22 @@ function App() {
   const [authedUser, setAuthedUser] = useState(null);   // { id, email, displayName } from server
   const [leagues, setLeagues]       = useState([]);     // { id, teamId, teamName, ... }
   const [activeLeagueId, setActiveLeagueId] = useState(null);   // null = show Hub
+  // Ensure TEAMS has an entry for every league the user belongs to. Module-
+  // level mutation, idempotent. Runs synchronously during render so any child
+  // component that does TEAMS.find(t => t.id === viewAs) gets a hit on the
+  // very first render after a new league appears.
+  for (const lg of leagues) {
+    if (lg.teamId && !TEAMS.some(t => t.id === lg.teamId)) {
+      TEAMS.push({
+        id:    lg.teamId,
+        name:  lg.teamName || "My Team",
+        owner: "",
+        email: "",
+        color: lg.teamColor || "#3A5F8A",
+        mono:  (lg.teamName || "MT").slice(0, 2).toUpperCase(),
+      });
+    }
+  }
   const [authChecking, setAuthChecking] = useState(true);
   const [tab, setTab] = useState("picks");
   // null | 'auto' (must swipe through) | 'manual' (X dismiss available)
@@ -1339,6 +1355,28 @@ function App() {
     try { const saved = localStorage.getItem("epga.picks"); if (saved) return JSON.parse(saved); } catch {}
     return PICKS;
   });
+
+  // Defensive accessor — ensures the active team always has a skeleton entry
+  // even if the cached picksDraft (from a previous session / older code path)
+  // is missing the current league's team. Without this, the first render of
+  // any PicksTab / LiveTab read crashes with picks[viewAs][selectedMajor].
+  const safePicks = React.useMemo(() => {
+    const activeLeague = leagues.find(l => l.id === activeLeagueId);
+    const myTeamId = activeLeague?.teamId;
+    if (!myTeamId || picksDraft[myTeamId]) return picksDraft;
+    const next = { ...picksDraft };
+    next[myTeamId] = {};
+    for (const m of MAJORS) {
+      next[myTeamId][m.id] = { starters: [null, null, null, null], bench: [null, null], subs: [], submitted: false };
+    }
+    return next;
+  }, [picksDraft, activeLeagueId, leagues]);
+
+  // Commit the synthesized skeleton back to picksDraft so mutations land in
+  // the right slot. Runs only when safePicks added a fresh entry.
+  useEffect(() => {
+    if (safePicks !== picksDraft) setPicksDraft(safePicks);
+  }, [safePicks, picksDraft]);
 
   // Track last-saved-to-server snapshot to diff and save only changed slots.
   const lastSavedPicksRef = useRef(null);
@@ -1691,7 +1729,7 @@ function App() {
   // Multi-league user with no active selection → show the Hub (with onboarding overlay).
   if (!activeLeagueId) return (
     <>
-      <LeagueHub authedUser={authedUser} leagues={leagues} picks={picksDraft} syncToken={syncToken}
+      <LeagueHub authedUser={authedUser} leagues={leagues} picks={safePicks} syncToken={syncToken}
         onEnterLeague={(id) => { setActiveLeagueId(id); setTab("picks"); }}
         onOpenProfile={(id) => { setActiveLeagueId(id || leagues[0]?.id); setTab("profile"); }}
         onLeaguesChanged={(nextLeagues, nextActiveId) => {
@@ -1715,13 +1753,13 @@ function App() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 fade-in" key={tab}>
         {tab === "picks" && (
           <PicksTab viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor}
-            picks={picksDraft} setPicks={setPicksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
+            picks={safePicks} setPicks={setPicksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
             syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} />
         )}
-        {tab === "live"        && <LiveTab picks={picksDraft} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} />}
+        {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} />}
 
-        {tab === "chat"        && <ChatTab user={user} picks={picksDraft} messages={chatMessages} onSend={sendMessage} />}
-        {tab === "leaderboard" && <LeaderboardTab picks={picksDraft} viewAs={viewAs} />}
+        {tab === "chat"        && <ChatTab user={user} picks={safePicks} messages={chatMessages} onSend={sendMessage} />}
+        {tab === "leaderboard" && <LeaderboardTab picks={safePicks} viewAs={viewAs} />}
         {tab === "league"      && <LeagueTab />}
         {tab === "profile"     && <ProfileTab user={user} onSave={saveProfile} onBack={() => setTab("picks")} />}
       </main>
@@ -1733,7 +1771,7 @@ function App() {
       )}
 
       {pickerState && (
-        <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={picksDraft} dynamicField={dynamicFields[selectedMajor]}
+        <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={safePicks} dynamicField={dynamicFields[selectedMajor]}
           onPick={(gid) => {
             const next = JSON.parse(JSON.stringify(picksDraft));
             const slot = next[viewAs][selectedMajor];
@@ -1749,7 +1787,7 @@ function App() {
           onClose={() => setPickerState(null)} />
       )}
       {subState && (
-        <SubInModal benchIndex={subState.benchIndex} teamId={viewAs} majorId={selectedMajor} picks={picksDraft}
+        <SubInModal benchIndex={subState.benchIndex} teamId={viewAs} majorId={selectedMajor} picks={safePicks}
           onConfirm={(starterIndex) => {
             const next = JSON.parse(JSON.stringify(picksDraft));
             const slot = next[viewAs][selectedMajor];
@@ -1765,7 +1803,7 @@ function App() {
           onClose={() => setSubState(null)} />
       )}
       {subOutState && (
-        <SubOutModal starterIndex={subOutState.starterIndex} teamId={viewAs} majorId={selectedMajor} picks={picksDraft}
+        <SubOutModal starterIndex={subOutState.starterIndex} teamId={viewAs} majorId={selectedMajor} picks={safePicks}
           onConfirm={(benchIndex) => {
             const next = JSON.parse(JSON.stringify(picksDraft));
             const slot = next[viewAs][selectedMajor];
