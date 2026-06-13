@@ -113,6 +113,11 @@
   }
   .om-pill:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  /* 15% darken on hover — used for the Hub's "Already invited?" join card so
+     the whole tile (background + text) shifts uniformly darker. */
+  .om-darken-hover { transition: filter 180ms ease; }
+  .om-darken-hover:hover { filter: brightness(0.85); }
+
 
   .display-num {
     font-feature-settings: 'tnum' 1, 'ss01' 1;
@@ -2226,7 +2231,7 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
         {/* CTAs */}
         <div className="mt-8 grid sm:grid-cols-2 gap-3">
           <button onClick={() => setAction("join")}
-            className="rounded-xl border-2 border-line hover:border-line-2 bg-white px-4 py-3 text-left transition-colors">
+            className="rounded-xl border-2 border-line bg-white px-4 py-3 text-left om-darken-hover">
             <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">Already invited?</div>
             <div className="font-semibold text-sm mt-0.5">Join another league</div>
           </button>
@@ -2974,7 +2979,7 @@ const ONBOARDING_SLIDES = [
     placeholder: "Picks tab · 4 starters + 2 bench",
   },
   {
-    title: "You earn what they earn",
+    title: "You score what they earn",
     body:  "Your score is the actual prize money your 4 starters take home. The bigger their cut, the higher you climb. The leaderboard updates live during play.",
     image: null,
     placeholder: "Live tab · earnings ticker",
@@ -3246,7 +3251,7 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
   const slot = picks[viewAs][selectedMajor];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ "--green": "#0f7a3e", "--green-2": "#0c6535" }}>
       {/* Sync bar (only meaningful when a live major is selected) */}
       {major.status === "live" && (
         <div className="flex justify-end -mt-2">
