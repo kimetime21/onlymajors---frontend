@@ -2301,8 +2301,14 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
       }
       // Current season's completed majors — fold them in so the avg updates
       // each time a tournament finishes, even before the season closes.
+      // Only count majors that are part of THIS league (so a "remaining
+      // majors" test league doesn't drag your Masters/PGA averages down).
+      const includedSet = Array.isArray(entry.league?.includedMajors) && entry.league.includedMajors.length
+        ? new Set(entry.league.includedMajors)
+        : new Set(["masters","pga","usopen","open"]);
       for (const m of MAJORS) {
         if (m.status !== "complete") continue;
+        if (!includedSet.has(m.id)) continue;
         const mine = teamMajorTotal(myTeamId, m.id, mergedPicks);
         tournSum  += mine;
         tournCount++;
@@ -3235,6 +3241,14 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name.trim()) { setError("Give your league a name."); return; }
+    if (leagueType === "single_major") {
+      if (!singleMajor) { setError("Pick which major this league is for."); return; }
+      const picked = MAJORS.find(m => m.id === singleMajor);
+      if (picked && picked.status === "complete") {
+        setError(`${picked.short} has already been played — pick an upcoming major.`);
+        return;
+      }
+    }
     setBusy(true); setError("");
     try {
       // Derive includedMajors from the chosen type. "remaining_majors" pulls
@@ -3322,14 +3336,22 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
               </div>
               {leagueType === "single_major" && (
                 <div className="mt-2 grid grid-cols-2 gap-2">
-                  {MAJORS.map(m => (
-                    <button key={m.id} type="button" onClick={() => setSingleMajor(m.id)}
-                      className={`rounded-md border px-3 py-2 text-left transition-colors text-[13px] ${singleMajor===m.id ? "" : "border-line text-dim hover:border-line-2"}`}
-                      style={singleMajor===m.id ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
-                      <div className="font-semibold">{m.short}</div>
-                      <div className="text-[11px] text-dim mt-0.5">{m.start}–{m.end}</div>
-                    </button>
-                  ))}
+                  {MAJORS.map(m => {
+                    const isPast = m.status === "complete";
+                    const isSelected = singleMajor === m.id && !isPast;
+                    return (
+                      <button key={m.id} type="button"
+                        onClick={() => !isPast && setSingleMajor(m.id)}
+                        disabled={isPast}
+                        className={`rounded-md border px-3 py-2 text-left transition-colors text-[13px] ${isSelected ? "" : "border-line text-dim hover:border-line-2"} ${isPast ? "opacity-50 cursor-not-allowed hover:border-line" : ""}`}
+                        style={isSelected ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
+                        <div className="font-semibold">{m.short}</div>
+                        <div className="text-[11px] text-dim mt-0.5">
+                          {isPast ? "Already played" : `${m.start}–${m.end}`}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               {leagueType === "remaining_majors" && (
@@ -5516,7 +5538,7 @@ function LeaderboardTab({ picks, viewAs, leagueId }) {
       </div>
 
       {/* Picks Locking Soon — privacy & lock countdown widget */}
-      <LocksWidget picks={picks} viewAs={viewAs} />
+      <LocksWidget picks={picks} viewAs={viewAs} leagueId={leagueId} />
 
       <div className="grid sm:grid-cols-1 gap-4">
         <div className="glass rounded-2xl p-5">
@@ -5623,7 +5645,7 @@ function StandingsMajorBlock({ major, teamId, totalForMajor, picks }) {
   );
 }
 
-function LocksWidget({ picks, viewAs }) {
+function LocksWidget({ picks, viewAs, leagueId }) {
   const upcoming = MAJORS.filter(m => m.status === "upcoming");
   if (upcoming.length === 0) return null;
   return (
