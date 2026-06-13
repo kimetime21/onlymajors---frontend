@@ -30,15 +30,15 @@
     --muted: rgba(17, 36, 26, 0.66);
     --dim:   rgba(17, 36, 26, 0.42);
     /* Accents (deeper for contrast on cream) */
-    --green:   #0f7a3e;
-    --green-2: #0c6535;
+    --green:   #2b4535;
+    --green-2: #1f3326;
     --gold:    #c9a227;
     --gold-2:  #e8c252;
     --red:     #b81d1d;
   }
   html, body {
     background:
-      radial-gradient(ellipse 80% 60% at 12% 0%, rgba(15,122,62,0.06), transparent 60%),
+      radial-gradient(ellipse 80% 60% at 12% 0%, rgba(43, 69, 53,0.06), transparent 60%),
       radial-gradient(ellipse 60% 50% at 88% 8%, rgba(166,121,35,0.05), transparent 60%),
       linear-gradient(180deg, #f7f4ea 0%, #efece1 100%);
     background-attachment: fixed;
@@ -79,8 +79,8 @@
   .fade-in { animation: fadeIn 320ms ease-out both; }
 
   @keyframes scorePulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(15, 122, 62, 0.55); transform: scale(1); }
-    50%      { box-shadow: 0 0 0 10px rgba(15, 122, 62, 0); transform: scale(1.03); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(43, 69, 53, 0.55); transform: scale(1); }
+    50%      { box-shadow: 0 0 0 10px rgba(43, 69, 53, 0); transform: scale(1.03); }
   }
   .score-pulse { animation: scorePulse 1.4s ease-in-out infinite; }
 
@@ -94,7 +94,7 @@
     animation: shimmer 4s linear infinite;
   }
 
-  .glow-green { box-shadow: 0 0 32px -10px rgba(15,122,62,0.35); }
+  .glow-green { box-shadow: 0 0 32px -10px rgba(43, 69, 53,0.35); }
   .glow-gold  { box-shadow: 0 0 24px -10px rgba(166,121,35,0.30); }
 
   /* Outlined green pill with an inverted-color hover — at rest the pill is
@@ -1722,13 +1722,13 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
         {/* Row 1 — Logo on the left, profile menu flush in the right corner */}
         <div className="flex items-center gap-3">
           <button onClick={onBackToHub} title="Back to your league hub"
-            className="shrink-0 rounded-full hover:opacity-80 transition-opacity focus:outline-none">
-            <OnlyMajorsLogo size={40} />
+            className="flex items-center gap-3 min-w-0 flex-1 text-left hover:opacity-80 transition-opacity focus:outline-none rounded-lg">
+            <OnlyMajorsLogo size={40} className="shrink-0" />
+            <div className="leading-tight min-w-0 flex-1">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-dim">OnlyMajors</div>
+              <div className="font-bold text-base sm:text-lg truncate">Experts PGA Fantasy <span className="text-muted font-medium">· 2026</span></div>
+            </div>
           </button>
-          <div className="leading-tight min-w-0 flex-1">
-            <div className="text-[10px] uppercase tracking-[0.18em] text-dim">OnlyMajors</div>
-            <div className="font-bold text-base sm:text-lg truncate">Experts PGA Fantasy <span className="text-muted font-medium">· 2026</span></div>
-          </div>
           <UserMenu user={user} onSignOut={onSignOut} onSwitchUser={onSwitchUser} onResetPicks={onResetPicks} onResetAll={onResetAll} onOpenProfile={onOpenProfile} onOpenLeague={onOpenLeague} onBackToHub={onBackToHub} multiLeague={multiLeague} onOpenOnboarding={onOpenOnboarding} />
         </div>
 
@@ -1899,7 +1899,7 @@ function LoginScreen({ onAuthed }) {
           {mode === "signup" && (
             <form onSubmit={handleSignup} className="space-y-3">
               {createdLeague && (
-                <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-2 text-[12px] leading-snug" style={{ color: "#0f7a3e" }}>
+                <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-2 text-[12px] leading-snug" style={{ color: "#2b4535" }}>
                   League <span className="font-semibold">{createdLeague.league.name}</span> is live. Share code <span className="font-mono font-bold">{createdLeague.league.code}</span> with your friends — then claim your team below.
                 </div>
               )}
@@ -1968,7 +1968,7 @@ function LoginScreen({ onAuthed }) {
                   {[3,4,5,6,8,10,12].map(n => (
                     <button key={n} type="button" onClick={() => setNewTeamCount(n)}
                       className={`flex-1 text-sm font-semibold py-2 rounded-md border transition-colors ${newTeamCount===n ? "border-green text-green" : "border-line text-dim hover:border-line-2"}`}
-                      style={newTeamCount===n ? { color: "#0f7a3e", borderColor: "#0f7a3e" } : {}}>
+                      style={newTeamCount===n ? { color: "#2b4535", borderColor: "#2b4535" } : {}}>
                       {n}
                     </button>
                   ))}
@@ -1984,7 +1984,7 @@ function LoginScreen({ onAuthed }) {
 
           {mode === "create" && createdLeague && (
             <div className="space-y-3">
-              <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#0f7a3e" }}>
+              <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#2b4535" }}>
                 <div className="font-semibold mb-1">{createdLeague.league.name} is live</div>
                 <div className="text-[12px]">
                   Share this invite code:
@@ -2093,6 +2093,8 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
     if (!summary) return null;
     let tournSum = 0, tournCount = 0, seasonSum = 0, seasonCount = 0;
     let tournWins = 0, overallWins = 0;
+    let tournPR  = 0;   // highest single-tournament earnings
+    let overallPR = 0;  // highest season-long earnings (closed seasons only)
     const MIDS = ["masters","pga","usopen","open"];
     for (const entry of summary.leagues) {
       const myTeamId = entry.myTeam.teamId;
@@ -2104,29 +2106,40 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
         if (myTeam) {
           for (const mid of MIDS) {
             if (myTeam.byMajor?.[mid] != null) {
-              tournSum += Number(myTeam.byMajor[mid]) || 0;
+              const v = Number(myTeam.byMajor[mid]) || 0;
+              tournSum += v;
               tournCount++;
+              if (v > tournPR) tournPR = v;
             }
           }
-          seasonSum += Number(myTeam.total) || 0;
+          const seasonTotal = Number(myTeam.total) || 0;
+          seasonSum += seasonTotal;
           seasonCount++;
+          if (seasonTotal > overallPR) overallPR = seasonTotal;
         }
         for (const mid of MIDS) {
           if (data.majorWinners?.[mid]?.teamId === myTeamId) tournWins++;
         }
         if (data.champion?.teamId === myTeamId) overallWins++;
       }
+      // Server picks merged over the PICKS seed so 2026 fallbacks behave the
+      // same on the Hub as inside the league.
+      const mergedPicks = JSON.parse(JSON.stringify(PICKS));
+      for (const teamId of Object.keys(entry.picks || {})) {
+        mergedPicks[teamId] = { ...(mergedPicks[teamId] || {}), ...entry.picks[teamId] };
+      }
       // Current season's completed majors — fold them in so the avg updates
       // each time a tournament finishes, even before the season closes.
       for (const m of MAJORS) {
         if (m.status !== "complete") continue;
-        const mine = teamMajorTotal(myTeamId, m.id, entry.picks);
+        const mine = teamMajorTotal(myTeamId, m.id, mergedPicks);
         tournSum  += mine;
         tournCount++;
+        if (mine > tournPR) tournPR = mine;
         // Did I win this major within my league?
         const teams = (entry.members || []).map(mem => ({
           teamId: mem.teamId,
-          total:  teamMajorTotal(mem.teamId, m.id, entry.picks),
+          total:  teamMajorTotal(mem.teamId, m.id, mergedPicks),
         })).sort((a, b) => b.total - a.total);
         if (teams[0]?.teamId === myTeamId && teams[0].total > 0) tournWins++;
       }
@@ -2138,6 +2151,8 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
       seasonCount,
       tournWins,
       overallWins,
+      tournPR,
+      overallPR,
     };
   // syncToken bumps whenever EARN hydration finishes so the current-season
   // major totals flow into the stats once the leaderboard data lands.
@@ -2164,7 +2179,7 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
       <header style={{ background: "var(--green)", color: "var(--bg-1)" }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <OnlyMajorsLogo size={36} cream={true} />
+            <OnlyMajorsLogo size={54} cream={true} />
             <span className="font-bold tracking-tight" style={{ color: "var(--bg-1)" }}>OnlyMajors</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
@@ -2258,30 +2273,48 @@ function ProfileStatsCard({ firstName, authedUser, summary, stats, onOpenProfile
       </div>
 
       {hasStats ? (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <CareerStat
-            label="Tournament avg"
-            value={fmt(stats.tournAvg)}
-            sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
-          />
-          <CareerStat
-            label="Overall avg"
-            value={fmt(stats.overallAvg)}
-            sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
-          />
-          <CareerStat
-            label="Tournament wins"
-            value={String(stats.tournWins)}
-            sub={stats.tournWins === 1 ? "major championship" : "major championships"}
-            highlight={stats.tournWins > 0}
-          />
-          <CareerStat
-            label="Overall wins"
-            value={String(stats.overallWins)}
-            sub={stats.overallWins === 1 ? "season title" : "season titles"}
-            highlight={stats.overallWins > 0}
-          />
-        </div>
+        <>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim">Career Stats</div>
+            <div className="flex-1 h-px bg-line"/>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <CareerStat
+              label="Tournament avg"
+              value={fmt(stats.tournAvg)}
+              sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
+            />
+            <CareerStat
+              label="Tournament PR"
+              value={fmt(stats.tournPR)}
+              sub="best single major"
+              highlight={stats.tournPR > 0}
+            />
+            <CareerStat
+              label="Tournament wins"
+              value={String(stats.tournWins)}
+              sub={stats.tournWins === 1 ? "major championship" : "major championships"}
+              highlight={stats.tournWins > 0}
+            />
+            <CareerStat
+              label="Overall avg"
+              value={fmt(stats.overallAvg)}
+              sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
+            />
+            <CareerStat
+              label="Overall PR"
+              value={fmt(stats.overallPR)}
+              sub="best full season"
+              highlight={stats.overallPR > 0}
+            />
+            <CareerStat
+              label="Overall wins"
+              value={String(stats.overallWins)}
+              sub={stats.overallWins === 1 ? "season title" : "season titles"}
+              highlight={stats.overallWins > 0}
+            />
+          </div>
+        </>
       ) : (
         <div className="text-xs text-dim italic">
           Career stats will populate as your league archives load. Play a major and the tournament average updates automatically.
@@ -2305,7 +2338,17 @@ function CareerStat({ label, value, sub, highlight }) {
 }
 
 function LeagueHubCard({ entry, activeMajor, liveMajor, syncToken, onEnter }) {
-  const { league, myTeam, members, picks } = entry;
+  const { league, myTeam, members, picks: rawPicks } = entry;
+  // Server picks merged over the PICKS seed so missing 2026 rows fall back to
+  // the realistic defaults — keeps Hub standings in sync with the in-league
+  // Standings tab, which already has this fallback via picksDraft.
+  const picks = React.useMemo(() => {
+    const merged = JSON.parse(JSON.stringify(PICKS));
+    for (const teamId of Object.keys(rawPicks || {})) {
+      merged[teamId] = { ...(merged[teamId] || {}), ...rawPicks[teamId] };
+    }
+    return merged;
+  }, [rawPicks]);
 
   // Season standing for this league.
   const standing = useMemo(() => {
@@ -2522,7 +2565,7 @@ function ArchiveYearBlock({ year, data }) {
 }
 
 function Stat({ label, value, sub, tone }) {
-  const toneColor = tone === "ok" ? "#0f7a3e" : tone === "warn" ? "#b08006" : tone === "muted" ? "var(--dim)" : "var(--text)";
+  const toneColor = tone === "ok" ? "#2b4535" : tone === "warn" ? "#b08006" : tone === "muted" ? "var(--dim)" : "var(--text)";
   return (
     <div className="min-w-0">
       <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{label}</div>
@@ -2624,7 +2667,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
                 {[3,4,5,6,8,10,12].map(n => (
                   <button key={n} type="button" onClick={() => setTeamCount(n)}
                     className={`flex-1 text-sm font-semibold py-2 rounded-md border transition-colors ${teamCount===n ? "" : "border-line text-dim hover:border-line-2"}`}
-                    style={teamCount===n ? { color: "#0f7a3e", borderColor: "#0f7a3e" } : {}}>
+                    style={teamCount===n ? { color: "#2b4535", borderColor: "#2b4535" } : {}}>
                     {n}
                   </button>
                 ))}
@@ -2640,7 +2683,7 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
 
         {kind === "create" && createdLeague && (
           <div className="space-y-3">
-            <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#0f7a3e" }}>
+            <div className="rounded-lg border border-green/40 bg-green/8 px-3 py-3 text-[13px] leading-snug" style={{ color: "#2b4535" }}>
               <div className="font-semibold mb-1">{createdLeague.league.name} is live</div>
               <div className="text-[12px]">Share this invite code:</div>
               <div className="font-mono text-xl font-bold tracking-widest mt-1">{createdLeague.league.code}</div>
@@ -3414,7 +3457,7 @@ function CourseCard({ major }) {
                 {/* Label + day (left side on mobile, top on desktop) */}
                 <div className="flex sm:flex-col sm:items-center items-baseline gap-2 sm:gap-0 shrink-0 w-20 sm:w-auto">
                   <div className={`text-[10px] uppercase tracking-wider font-semibold ${d.isCompetition ? "" : "text-dim"}`}
-                    style={d.isCompetition ? { color: "#0f7a3e" } : {}}>
+                    style={d.isCompetition ? { color: "#2b4535" } : {}}>
                     {d.round}
                   </div>
                   <div className="text-sm font-semibold sm:mt-0.5">{d.day} <span className="text-dim font-normal">{d.date}</span></div>
@@ -3590,7 +3633,7 @@ function ScorePredictor({ value, onChange, locked }) {
       <div className="relative mx-auto" style={{ width: "180px" }}>
         {/* Selected-row highlight — solid green top + bottom border around the center value (E by default) */}
         <div className="absolute inset-x-0 pointer-events-none" style={{ top: ITEM_H, height: ITEM_H }}>
-          <div className="w-full h-full" style={{ borderTop: "2px solid #0f7a3e", borderBottom: "2px solid #0f7a3e" }} />
+          <div className="w-full h-full" style={{ borderTop: "2px solid #2b4535", borderBottom: "2px solid #2b4535" }} />
         </div>
         <div className="absolute inset-x-0 top-0 pointer-events-none" style={{ height: ITEM_H, background: "linear-gradient(to bottom, var(--bg2) 0%, transparent 100%)" }} />
         <div className="absolute inset-x-0 bottom-0 pointer-events-none" style={{ height: ITEM_H, background: "linear-gradient(to top, var(--bg2) 0%, transparent 100%)" }} />
@@ -3621,11 +3664,11 @@ function ScorePredictor({ value, onChange, locked }) {
             disabled={!draftIsDirty && !justLocked}
             style={
               justLocked
-                ? { color: "#0f7a3e", background: "rgba(15, 122, 62, 0.10)", border: "2px solid #0f7a3e", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
+                ? { color: "#2b4535", background: "rgba(43, 69, 53, 0.10)", border: "2px solid #2b4535", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
                 : draftIsDirty
-                  ? { color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
+                  ? { color: "#2b4535", background: "transparent", border: "2px solid #2b4535", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
                   : value != null
-                    ? { color: "rgba(15, 122, 62, 0.65)", background: "transparent", border: "2px solid rgba(15, 122, 62, 0.35)", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
+                    ? { color: "rgba(43, 69, 53, 0.65)", background: "transparent", border: "2px solid rgba(43, 69, 53, 0.35)", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
                     : { color: "rgba(0,0,0,0.35)", background: "transparent", border: "2px solid rgba(0,0,0,0.15)", transition: "color 600ms ease-out, background 600ms ease-out, border-color 600ms ease-out" }
             }
             className={`relative px-5 py-2.5 rounded-lg text-sm font-semibold whitespace-nowrap
@@ -3735,7 +3778,7 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
   }
 
   // Background hint — barely-there tint, no border-color clash
-  const bg = isIn ? "rgba(15, 122, 62, 0.08)" : "rgba(184, 29, 29, 0.05)";
+  const bg = isIn ? "rgba(43, 69, 53, 0.08)" : "rgba(184, 29, 29, 0.05)";
 
   return (
     <div className={`rounded-lg px-3 sm:px-4 py-2.5 border border-line ${isMC ? "opacity-60" : ""}`} style={{ background: bg }}>
@@ -3936,7 +3979,7 @@ function Composer({ onSend, user }) {
         <button type="submit" disabled={!text.trim()}
           className={`font-semibold rounded-lg px-4 py-2 text-sm transition-colors whitespace-nowrap ${text.trim() ? "hover:bg-green/10" : "cursor-not-allowed"}`}
           style={text.trim()
-            ? { color: "#0f7a3e", background: "transparent", border: "2px solid #0f7a3e" }
+            ? { color: "#2b4535", background: "transparent", border: "2px solid #2b4535" }
             : { color: "rgba(0,0,0,0.35)", background: "transparent", border: "2px solid rgba(0,0,0,0.15)" }}>
           Send
         </button>
@@ -4548,7 +4591,7 @@ function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) 
         {li && (
           <div className="text-right shrink-0 leading-tight">
             <div className="text-[10px] uppercase tracking-wider text-dim">{li.label}</div>
-            <div className="text-xs font-semibold text-green truncate max-w-[120px]" style={{ color: "#0f7a3e" }}>{li.name}</div>
+            <div className="text-xs font-semibold text-green truncate max-w-[120px]" style={{ color: "#2b4535" }}>{li.name}</div>
           </div>
         )}
       </button>
@@ -4571,7 +4614,7 @@ function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) 
         {currentLi && (
           <div className="text-right shrink-0 leading-tight hidden sm:block">
             <div className="text-[10px] uppercase tracking-wider text-dim">{currentLi.label}</div>
-            <div className="font-semibold text-sm truncate max-w-[140px]" style={{ color: "#0f7a3e" }}>{currentLi.name}</div>
+            <div className="font-semibold text-sm truncate max-w-[140px]" style={{ color: "#2b4535" }}>{currentLi.name}</div>
           </div>
         )}
         <svg viewBox="0 0 24 24" className={`w-4 h-4 text-dim shrink-0 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
@@ -4676,7 +4719,7 @@ function LiveLineItem({ golferId, majorId, slot, role }) {
     <div className="flex items-center gap-2.5 px-2 py-1.5 rounded"
       style={
         subbedOut ? { background: "rgba(184, 29, 29, 0.12)", border: "1px solid rgba(184, 29, 29, 0.55)" }
-        : subbedIn ? { background: "rgba(15, 122, 62, 0.18)", border: "1px solid rgba(15, 122, 62, 0.65)" }
+        : subbedIn ? { background: "rgba(43, 69, 53, 0.18)", border: "1px solid rgba(43, 69, 53, 0.65)" }
         : role === "bench" ? { opacity: 0.55 }
         : {}
       }>
@@ -4685,7 +4728,7 @@ function LiveLineItem({ golferId, majorId, slot, role }) {
       {subbedOut && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
         style={{ color: "#b81d1d", background: "rgba(184, 29, 29, 0.18)", border: "1px solid rgba(184, 29, 29, 0.55)" }}>OUT</span>}
       {subbedIn  && <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-        style={{ color: "#0f7a3e", background: "rgba(15, 122, 62, 0.22)", border: "1px solid rgba(15, 122, 62, 0.65)" }}>IN</span>}
+        style={{ color: "#2b4535", background: "rgba(43, 69, 53, 0.22)", border: "1px solid rgba(43, 69, 53, 0.65)" }}>IN</span>}
       {earn && <ScorePill status={earn.status} position={earn.position} />}
       {earn && <ScoreNum score={earn.score} status={earn.status} />}
       <span className="font-mono font-semibold text-sm tabular-nums w-16 text-right">{total === null ? "—" : fmt(total)}</span>
