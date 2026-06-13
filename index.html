@@ -792,9 +792,12 @@ function playedGolfers(teamId, picks = PICKS) {
     if (m.status === "upcoming") continue;
     const p = picks[teamId]?.[m.id];
     if (!p) continue;
-    // A golfer is "played" if they ended the major as IN (counting) — which
-    // means starters who weren't subbed out, plus bench who were subbed in.
-    inGolfers(p).forEach(g => g && used.add(g));
+    // A golfer is "played" (and therefore not eligible for a later major) if
+    // they were ever in the lineup during this major. That's every starter —
+    // even subbed-out ones, since the strategic move of subbing them out
+    // doesn't refund their slot — plus any bench player who was subbed in.
+    (p.starters || []).forEach(g => g && used.add(g));
+    getSubbedIn(p).forEach(g => g && used.add(g));
   }
   return used;
 }
@@ -4034,6 +4037,9 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
           {/* Starters */}
           <section>
             <SectionHeader title="Starters" sub="4 golfers · earnings count toward team total" tag={major.status === "complete" ? "FINAL" : major.status === "live" ? "LIVE" : "ROSTER"} />
+            <div className="mb-3 rounded-md border border-line bg-tile/40 px-3 py-2 text-[11px] leading-snug text-dim">
+              Naming a golfer as a starter counts as playing them — even if you sub them out later. Subbing them out stops their earnings, but their season slot is spent.
+            </div>
             <div className="space-y-2">
               {[0,1,2,3].map(i => (
                 <PickRow key={i} role="starter" slotIndex={i+1} golferId={slot.starters[i]} majorId={selectedMajor} major={major}
