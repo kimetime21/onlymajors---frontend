@@ -1865,9 +1865,9 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
   const liveContrib = liveMajor ? teamMajorTotal(viewAs, liveMajor.id) : 0;
   const total = settled + liveContrib;
 
-  const sorted = TEAMS.map(t => ({ id: t.id, total: teamSeasonTotal(t.id) })).sort((a,b) => b.total - a.total);
+  const sorted = teamsForLeague(leagueId).map(t => ({ id: t.id, total: teamSeasonTotal(t.id) })).sort((a,b) => b.total - a.total);
   const rank = sorted.findIndex(t => t.id === viewAs) + 1;
-  const leader = sorted[0].total;
+  const leader = sorted[0]?.total ?? 0;
   const behind = total - leader;
 
   return (
@@ -5041,12 +5041,12 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
       {showSwitcher && (
         <LiveMajorSwitcher
           viewedMajorId={viewedMajorId} setViewedMajorId={setViewedMajorId}
-          options={switcherOptions} picks={picks} />
+          options={switcherOptions} picks={picks} leagueId={leagueId} />
       )}
 
       {/* Body — pre-tournament hero, empty state, or full leaderboard */}
       {isPreTour ? (
-        <PicksOpenLiveState major={viewed} picks={picks} onGotoPicks={onGotoPicks} />
+        <PicksOpenLiveState major={viewed} picks={picks} onGotoPicks={onGotoPicks} leagueId={leagueId} />
       ) : !hasData ? (
         <EmptyLiveState major={viewed} />
       ) : (
@@ -5158,7 +5158,7 @@ function ScorePredictionsPanel({ picks, majorId, leagueId }) {
   );
 }
 
-function PicksOpenLiveState({ major, picks, onGotoPicks }) {
+function PicksOpenLiveState({ major, picks, onGotoPicks, leagueId }) {
   // Re-tick once a minute so the countdown stays current without a full reload.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -5179,11 +5179,12 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
   const minutes = Math.floor((diffMs % (60*60*1000)) / (60*1000));
 
   // Tally who's submitted vs not
-  const submittedTeams = TEAMS.filter(t => {
+  const leagueTeams    = teamsForLeague(leagueId);
+  const submittedTeams = leagueTeams.filter(t => {
     const slot = picks?.[t.id]?.[major.id];
     return slot && slot.starters?.filter(Boolean).length === 4;
   });
-  const pendingTeams = TEAMS.filter(t => !submittedTeams.includes(t));
+  const pendingTeams = leagueTeams.filter(t => !submittedTeams.includes(t));
 
   return (
     <div className="space-y-6">
@@ -5257,7 +5258,7 @@ function PicksOpenLiveState({ major, picks, onGotoPicks }) {
 // rich list of all majors you can switch between (live + complete + upcoming-
 // with-picks-open). Mirrors the design of MajorSelectorDropdown on the Picks
 // tab so the two tabs feel like one app.
-function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) {
+function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks, leagueId }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -5274,7 +5275,7 @@ function LiveMajorSwitcher({ viewedMajorId, setViewedMajorId, options, picks }) 
 
   // Leader/winner summary for a major (used as the right-side accent).
   const leaderFor = (mid) => {
-    const rows = TEAMS.map(t => ({
+    const rows = teamsForLeague(leagueId).map(t => ({
       team: t,
       total: teamMajorTotal(t.id, mid, picks),
       originalTotal: teamMajorOriginalTotal(t.id, mid),
@@ -5630,8 +5631,8 @@ function LocksWidget({ picks, viewAs }) {
           const opensIn = daysUntilPicksOpen(m);
           const locksIn = daysUntilLock(m);
           const open = arePicksOpen(m);
-          const submitted = TEAMS.filter(t => picks[t.id]?.[m.id]?.submitted);
-          const pending   = TEAMS.filter(t => !picks[t.id]?.[m.id]?.submitted);
+          const submitted = teamsForLeague(leagueId).filter(t => picks[t.id]?.[m.id]?.submitted);
+          const pending   = teamsForLeague(leagueId).filter(t => !picks[t.id]?.[m.id]?.submitted);
           const mine = picks[viewAs]?.[m.id]?.submitted;
           return (
             <div key={m.id} className="border border-line rounded-xl p-4 bg-white">
@@ -5876,7 +5877,7 @@ function LeagueTab() {
       <div className="glass rounded-2xl p-5">
         <h3 className="font-semibold mb-3">Members</h3>
         <div className="grid sm:grid-cols-2 gap-2">
-          {TEAMS.map(t => (
+          {teamsForLeague(leagueId).map(t => (
             <div key={t.id} className="flex items-center gap-3 p-3 rounded-lg bg-white border border-line">
               <TeamBadge team={t} size="md" />
               <div className="flex-1 min-w-0">
