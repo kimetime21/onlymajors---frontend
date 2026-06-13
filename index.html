@@ -1251,6 +1251,25 @@ function App() {
     return completed[completed.length - 1]?.id || MAJORS[0].id;
   });
 
+  // Re-bias the selected major whenever the active league changes — only
+  // pick from the league's includedMajors so a "remaining majors" league
+  // doesn't open straight to a major it doesn't include.
+  useEffect(() => {
+    const lg = leagues.find(l => l.id === activeLeagueId);
+    const allowed = Array.isArray(lg?.includedMajors) ? lg.includedMajors : null;
+    if (!allowed || !allowed.length) return;
+    if (allowed.includes(selectedMajor)) return;
+    const live = MAJORS.find(m => m.status === "live" && allowed.includes(m.id));
+    if (live) { setSelectedMajor(live.id); return; }
+    const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m) && allowed.includes(m.id));
+    if (upcomingOpen) { setSelectedMajor(upcomingOpen.id); return; }
+    const nextUpcoming = MAJORS.find(m => m.status === "upcoming" && allowed.includes(m.id));
+    if (nextUpcoming) { setSelectedMajor(nextUpcoming.id); return; }
+    const fallback = MAJORS.find(m => allowed.includes(m.id));
+    if (fallback) setSelectedMajor(fallback.id);
+  // eslint-disable-next-line
+  }, [activeLeagueId, leagues]);
+
   // Apply /api/me response. Hub is the canonical landing page — returning
   // users who had an active league last session pick up where they left off,
   // everyone else lands on the Hub for a quick orientation.
@@ -1769,7 +1788,7 @@ function App() {
             picks={safePicks} setPicks={setPicksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
             syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} />
         )}
-        {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} />}
+        {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} leagueId={activeLeagueId} />}
 
         {tab === "chat"        && <ChatTab user={user} picks={safePicks} messages={chatMessages} onSend={sendMessage} />}
         {tab === "leaderboard" && <LeaderboardTab picks={safePicks} viewAs={viewAs} leagueId={activeLeagueId} />}
@@ -3179,7 +3198,14 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
   const [name, setName]         = useState("");
   const [code, setCode]         = useState("");
   const [visibility, setVisibility] = useState("public");
-  const [leagueType, setLeagueType] = useState("all_four");   // single_major | remaining_majors | all_four | four_plus_one
+  // Disable full-season types once any of the four majors has already started
+  // — a new "all four" league mid-season would have nothing to count for
+  // tournaments already in the books.
+  const fourMajorsAvailable = ["masters","pga","usopen","open"].every(mid => {
+    const m = MAJORS.find(x => x.id === mid);
+    return m && m.status === "upcoming";
+  });
+  const [leagueType, setLeagueType] = useState(fourMajorsAvailable ? "all_four" : "remaining_majors");
   const [singleMajor, setSingleMajor] = useState(null);
   const [createdLeague, setCreatedLeague] = useState(null);
   // Join flow state
@@ -3277,17 +3303,19 @@ function LeagueHubActionModal({ kind, onClose, onJoined, onCreated }) {
                   <div className="text-[13px] font-semibold">Remaining majors</div>
                   <div className="text-[11px] text-dim mt-0.5">Only the ones still ahead.</div>
                 </button>
-                <button type="button" onClick={() => setLeagueType("all_four")}
-                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="all_four" ? "" : "border-line text-dim hover:border-line-2"}`}
+                <button type="button" onClick={() => fourMajorsAvailable && setLeagueType("all_four")}
+                  disabled={!fourMajorsAvailable}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="all_four" ? "" : "border-line text-dim hover:border-line-2"} ${!fourMajorsAvailable ? "opacity-50 cursor-not-allowed hover:border-line" : ""}`}
                   style={leagueType==="all_four" ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
                   <div className="text-[13px] font-semibold">All four majors</div>
-                  <div className="text-[11px] text-dim mt-0.5">Masters, PGA, U.S. Open, The Open.</div>
+                  <div className="text-[11px] text-dim mt-0.5">{fourMajorsAvailable ? "Masters, PGA, U.S. Open, The Open." : "Available before the season starts."}</div>
                 </button>
-                <button type="button" onClick={() => setLeagueType("four_plus_one")}
-                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="four_plus_one" ? "" : "border-line text-dim hover:border-line-2"}`}
+                <button type="button" onClick={() => fourMajorsAvailable && setLeagueType("four_plus_one")}
+                  disabled={!fourMajorsAvailable}
+                  className={`rounded-lg border px-3 py-2 text-left transition-colors ${leagueType==="four_plus_one" ? "" : "border-line text-dim hover:border-line-2"} ${!fourMajorsAvailable ? "opacity-50 cursor-not-allowed hover:border-line" : ""}`}
                   style={leagueType==="four_plus_one" ? { borderColor: "var(--green)", background: "rgba(43,69,53,0.06)" } : {}}>
                   <div className="text-[13px] font-semibold">Four + one</div>
-                  <div className="text-[11px] text-dim mt-0.5">All four majors plus The Players.</div>
+                  <div className="text-[11px] text-dim mt-0.5">{fourMajorsAvailable ? "All four majors plus The Players." : "Available before the season starts."}</div>
                 </button>
               </div>
               {leagueType === "single_major" && (
@@ -4950,7 +4978,7 @@ function EmptyLiveState({ major }) {
   );
 }
 
-function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks }) {
+function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks, leagueId }) {
   const liveMajor    = MAJORS.find(m => m.status === "live");
   const lastComplete = [...MAJORS].reverse().find(m => m.status === "complete");
   const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
@@ -4984,8 +5012,8 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
   const isPreTour = viewed.status === "upcoming" && daysUntilLock(viewed) <= 14;
 
   const rows = useMemo(() => {
-    return TEAMS.map(t => {
-      const slot = picks[t.id][viewed.id];
+    return teamsForLeague(leagueId).map(t => {
+      const slot = picks[t.id]?.[viewed.id];
       return {
         team: t,
         starters: slot?.starters || [],
@@ -5068,14 +5096,14 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
           </div>
 
           {/* Score Predictions */}
-          <ScorePredictionsPanel picks={picks} majorId={viewed.id} />
+          <ScorePredictionsPanel picks={picks} majorId={viewed.id} leagueId={leagueId} />
         </>
       )}
     </div>
   );
 }
 
-function ScorePredictionsPanel({ picks, majorId }) {
+function ScorePredictionsPanel({ picks, majorId, leagueId }) {
   // Pull the live tournament leader's score-to-par for context.
   const leaderScore = useMemo(() => {
     const e = EARN[majorId] || {};
@@ -5090,7 +5118,7 @@ function ScorePredictionsPanel({ picks, majorId }) {
   }, [majorId]);
 
   const predictions = useMemo(() => {
-    return TEAMS.map(t => ({
+    return teamsForLeague(leagueId).map(t => ({
       team: t,
       pick: picks?.[t.id]?.[majorId]?.scorePrediction ?? null,
     }))
