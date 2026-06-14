@@ -1085,6 +1085,14 @@ async function apiMe() {
   if (!res.ok) throw new Error(`me HTTP ${res.status}`);
   return await res.json();   // { user, leagues }
 }
+// Tee times for a specific round of a major. Returns { times: { gid: { iso, label } } }.
+// Cached server-side for 5 minutes so calling on every Picks-tab render is cheap.
+async function apiTeeTimes(majorId, round) {
+  const res = await fetch(`${ONLYMAJORS_API}/api/tee-times/${majorId}/${round}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`tee-times HTTP ${res.status}`);
+  return await res.json();
+}
+
 async function apiGetNotificationPrefs() {
   const res = await authFetch(`${ONLYMAJORS_API}/api/me/notifications`);
   if (!res.ok) throw new Error(`/api/me/notifications HTTP ${res.status}`);
@@ -1908,9 +1916,11 @@ function App() {
           <PicksTab viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor}
             picks={safePicks} setPicks={setPicksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
             syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh}
-            leagueType={activeLeague?.leagueType || "all_four"} />
+            leagueType={activeLeague?.leagueType || "all_four"}
+            includedMajors={activeLeague?.includedMajors || null} />
         )}
-        {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} leagueId={activeLeagueId} />}
+        {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} leagueId={activeLeagueId}
+            includedMajors={activeLeague?.includedMajors || null} />}
 
         {tab === "chat"        && <ChatTab user={user} picks={safePicks} messages={chatMessages} onSend={sendMessage} leagueId={activeLeagueId} />}
         {tab === "leaderboard" && <LeaderboardTab picks={safePicks} viewAs={viewAs} leagueId={activeLeagueId} />}
@@ -2509,13 +2519,10 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
     let overallPR = 0;  // highest season-long earnings (closed seasons only)
     const MIDS = ["masters","pga","usopen","open"];
     for (const entry of summary.leagues) {
-      // Handicap Stats only count 4-starter league play. Single-major
-      // leagues use a 6-starter format (matching the Club Championship),
-      // so their numbers aren't directly comparable — skip them across
-      // archive + current-season folding. This applies to every user the
-      // same way and self-handles any future single-major league a user
-      // joins or creates.
-      if (entry.league?.leagueType === "single_major") continue;
+      // All league formats share the 4-starter roster shape, so every
+      // league's numbers count toward Handicap Stats. Per-league
+      // `includedMajors` filtering below keeps single-major contributions
+      // scoped to just the major they cover.
       const myTeamId = entry.myTeam.teamId;
       // Archived years
       const archive = archivesByLeague[entry.league.id];
@@ -2619,8 +2626,9 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
       </header>
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 fade-in">
-        {/* Welcome line — sets the country-club tone. */}
-        <div className="text-[12px] uppercase tracking-[0.22em] text-dim font-semibold mb-2">
+        {/* Welcome line — sets the country-club tone. Smaller letter-spacing
+            on phones so it doesn't visually crowd the membership card below. */}
+        <div className="text-[11px] sm:text-[12px] uppercase tracking-[0.16em] sm:tracking-[0.22em] text-dim font-semibold mb-2">
           Welcome to the Clubhouse{firstName ? `, ${firstName}` : ""}
         </div>
 
@@ -2880,6 +2888,12 @@ function ProShopProductCard({ product, onClick }) {
 }
 
 function ProductDetailModal({ product, onClose, onNotify }) {
+  // Body scroll lock so the Pro Shop page underneath doesn't drift.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
   const [variantKey, setVariantKey] = useState(product.variants[0].key);
   // Optional per-product customization (e.g. putter logo placement). Defaults
   // to the first option. Only renders if the product defines `customizable`.
@@ -5209,7 +5223,7 @@ function useRelativeTime(date) {
 /* =========================================================================
    PICKS TAB
    ========================================================================= */
-function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
+function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor, includedMajors }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -5221,8 +5235,13 @@ function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
     return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
   }, [open]);
 
+  // Per-league filtering: only show majors this league includes. Falls back
+  // to all four when no filter is provided (legacy / mainline behavior).
+  const includedSet = Array.isArray(includedMajors) && includedMajors.length
+    ? new Set(includedMajors) : null;
+  const allowedMajors = includedSet ? MAJORS.filter(m => includedSet.has(m.id)) : MAJORS;
   const major = M[selectedMajor];
-  const others = MAJORS.filter(m => m.id !== selectedMajor);
+  const others = allowedMajors.filter(m => m.id !== selectedMajor);
   const tot = teamMajorTotal(viewAs, selectedMajor);
 
   const Row = ({ m, sel, onClick }) => {
@@ -5275,15 +5294,50 @@ function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
   );
 }
 
-function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, openPicker, openSub, openSubOut, onRemove, syncStatus, lastUpdated, onRefresh, leagueType = "all_four" }) {
-  // Single-major leagues use a 6-starter / no-bench / no-subs format,
-  // matching the Club Championship contest shape.
-  const sixStarter = leagueType === "single_major";
-  const starterCount = sixStarter ? 6 : 4;
-  const benchCount   = sixStarter ? 0 : 2;
+function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, openPicker, openSub, openSubOut, onRemove, syncStatus, lastUpdated, onRefresh, leagueType = "all_four", includedMajors }) {
+  // All league formats now use the same 4-starter + 2-bench roster. Single-
+  // major leagues stay on this shape (with the score prediction acting as
+  // the tiebreaker) so career stats stay comparable across formats.
+  const starterCount = 4;
+  const benchCount   = 2;
+  const sixStarter   = false;
+  // If the currently selected major isn't in this league's includedMajors,
+  // snap to the first one that is. Runs at mount + whenever the league
+  // boundary changes.
+  useEffect(() => {
+    if (!Array.isArray(includedMajors) || includedMajors.length === 0) return;
+    if (!includedMajors.includes(selectedMajor)) {
+      setSelectedMajor(includedMajors[0]);
+    }
+  }, [includedMajors?.join(","), selectedMajor]);
   const team = TEAMS.find(t => t.id === viewAs);
   const major = M[selectedMajor];
   const slot = picks[viewAs][selectedMajor];
+  // Tee-time data — only fetched + shown while major is live and the next
+  // round hasn't begun yet. Picks-tab refresh re-pulls on every render of
+  // the major change, with server-side 5 min cache absorbing the load.
+  const nextRound = useMemo(() => {
+    if (major?.status !== "live" || !major?.rounds) return null;
+    const now = Date.now();
+    // The "next round" is the earliest round whose start time is in the
+    // future. If R1 hasn't teed off yet → 1; if R3 is in progress → null.
+    for (const r of [1, 2, 3, 4]) {
+      const start = new Date(major.rounds[`r${r}`]).getTime();
+      if (start > now) return r;
+    }
+    return null;
+  }, [major?.id, major?.status]);
+  const [teeTimes, setTeeTimes] = useState({});
+  useEffect(() => {
+    if (!nextRound) { setTeeTimes({}); return; }
+    let cancelled = false;
+    apiTeeTimes(selectedMajor, nextRound)
+      .then(r => { if (!cancelled) setTeeTimes(r?.times || {}); })
+      .catch(() => { if (!cancelled) setTeeTimes({}); });
+    return () => { cancelled = true; };
+  }, [selectedMajor, nextRound]);
+  const teeTimeFor = (gid) => teeTimes[gid] || null;
+  const nextRoundLabel = nextRound ? `R${nextRound}` : null;
 
   return (
     <div className="space-y-6" style={{ "--green": "#0f7a3e", "--green-2": "#0c6535" }}>
@@ -5294,7 +5348,7 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
         </div>
       )}
 
-      <MajorSelectorDropdown viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor} />
+      <MajorSelectorDropdown viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor} includedMajors={includedMajors} />
 
       {/* Hero card for the selected major */}
       <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${major.scene}`}>
@@ -5361,7 +5415,9 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
                   canSubOut={!sixStarter && canSubInMajor(major) && slot.starters[i] != null && slot.bench.some(x => x != null) && isGolferIn(slot, slot.starters[i])}
                   onClick={() => major.status !== "complete" && openPicker({ slotType: "starter", slotIndex: i })}
                   onSubOut={() => openSubOut({ starterIndex: i })}
-                  onRemove={() => onRemove(selectedMajor, "starter", i)} />
+                  onRemove={() => onRemove(selectedMajor, "starter", i)}
+                  nextTeeTime={teeTimeFor(slot.starters[i])}
+                  nextRoundLabel={nextRoundLabel} />
               ))}
             </div>
           </section>
@@ -5377,7 +5433,9 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
                     canSub={canSubInMajor(major) && slot.bench[i] != null && !isGolferIn(slot, slot.bench[i])}
                     onClick={() => major.status !== "complete" && openPicker({ slotType: "bench", slotIndex: i })}
                     onSub={() => openSub({ benchIndex: i })}
-                    onRemove={() => onRemove(selectedMajor, "bench", i)} />
+                    onRemove={() => onRemove(selectedMajor, "bench", i)}
+                    nextTeeTime={teeTimeFor(slot.bench[i])}
+                    nextRoundLabel={nextRoundLabel} />
                 ))}
               </div>
             </section>
@@ -5815,7 +5873,7 @@ function PlayedList({ teamId, picks }) {
   );
 }
 
-function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut, isIn, onClick, onSub, onSubOut, onRemove }) {
+function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut, isIn, onClick, onSub, onSubOut, onRemove, nextTeeTime, nextRoundLabel }) {
   const g = golferId ? (G[golferId] || GOLFERS_EXT[golferId] || null) : null;
   const earn = golferId ? EARN[majorId]?.[golferId] : null;
   const total = golferId ? golferTotal(majorId, golferId) : null;
@@ -5865,6 +5923,18 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
               {earn.thru && earn.status === "made_cut" && <>thru {earn.thru}</>}
               {major.status === "live"     && earn.status === "made_cut" && <> · projected</>}
               {major.status === "complete" && <>final</>}
+            </div>
+          )}
+          {/* Next-round tee time — only visible between rounds, before the
+              next round tees off. Skip MC/WD players. */}
+          {nextTeeTime && !isMC && (
+            <div className="text-[11px] mt-0.5 inline-flex items-center gap-1.5 font-semibold"
+              style={{ color: "var(--green)" }}>
+              <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="8" cy="8" r="6"/>
+                <path d="M8 5v3l2 1"/>
+              </svg>
+              {nextRoundLabel || "Next"} · {nextTeeTime.label}
             </div>
           )}
         </div>
@@ -6354,22 +6424,27 @@ function buildLeagueUpdatesMock(rows, viewed) {
   ];
 }
 
-function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks, leagueId }) {
-  const liveMajor    = MAJORS.find(m => m.status === "live");
-  const lastComplete = [...MAJORS].reverse().find(m => m.status === "complete");
-  const upcomingOpen = MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
+function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks, leagueId, includedMajors }) {
+  // Scope every major lookup to the league's includedMajors. Falls back to
+  // all four when no filter (legacy / all_four / four_plus_one leagues).
+  const includedSet = Array.isArray(includedMajors) && includedMajors.length
+    ? new Set(includedMajors) : null;
+  const ALLOWED_MAJORS = includedSet ? MAJORS.filter(m => includedSet.has(m.id)) : MAJORS;
+  const liveMajor    = ALLOWED_MAJORS.find(m => m.status === "live");
+  const lastComplete = [...ALLOWED_MAJORS].reverse().find(m => m.status === "complete");
+  const upcomingOpen = ALLOWED_MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m));
   // Surface the next upcoming major during the lead-up week (two weeks out)
   // so the page feels current — even before picks formally open.
-  const upcomingFocus = MAJORS.find(m => m.status === "upcoming" && daysUntilLock(m) <= 14);
+  const upcomingFocus = MAJORS.find(m => m.status === "upcoming" && daysUntilLock(m) <= 7);
   // Default focus: live → picks-already-open → lead-up-week upcoming → most
   // recent complete major.
-  const defaultMajor = liveMajor || upcomingOpen || upcomingFocus || lastComplete || MAJORS[0];
+  const defaultMajor = liveMajor || upcomingOpen || upcomingFocus || lastComplete || ALLOWED_MAJORS[0] || MAJORS[0];
   const [viewedMajorId, setViewedMajorId] = useState(defaultMajor.id);
   const viewed = M[viewedMajorId] || defaultMajor;
 
   // Dropdown options: anything worth looking at — live + upcoming focus +
-  // every complete major. Most-current items first.
-  const completeMajors = MAJORS.filter(m => m.status === "complete");
+  // every complete major, restricted to majors this league includes.
+  const completeMajors = ALLOWED_MAJORS.filter(m => m.status === "complete");
   const switcherOptions = useMemo(() => {
     const list = [];
     if (liveMajor)      list.push(liveMajor);
@@ -6385,7 +6460,7 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
   // Render the countdown hero for any upcoming major in its lead-up window,
   // whether picks are formally open yet or not — PicksOpenLiveState below
   // adapts its copy based on arePicksOpen.
-  const isPreTour = viewed.status === "upcoming" && daysUntilLock(viewed) <= 14;
+  const isPreTour = viewed.status === "upcoming" && daysUntilLock(viewed) <= 7;
 
   const rows = useMemo(() => {
     return teamsForLeague(leagueId).map(t => {
