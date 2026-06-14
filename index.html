@@ -3282,12 +3282,12 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
   // roster feels alive. Members can tap "Change" to swap any slot — opens
   // a small mock picker that just dismisses (preview only).
   const youName = authedUser?.displayName?.split(/[\s@]/)[0] || "You";
-  const initialStarters = ["scottie", "rory", "rahm", "schauffele"];
-  const initialBench    = ["aberg", "jt"];
-  const golferName = (id) => {
-    const g = (typeof GOLFERS !== "undefined" ? GOLFERS : []).find(x => x.id === id);
-    return g?.name || id;
-  };
+  // Hardcode preview names so we don't depend on the GOLFERS lookup table.
+  // Club Championship: 6 starters, no bench (one all-in roster).
+  const initialStarters = [
+    "Scottie Scheffler", "Rory McIlroy", "Jon Rahm",
+    "Xander Schauffele", "Ludvig Åberg", "Justin Thomas",
+  ];
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center px-4 py-6"
       onClick={onClose}>
@@ -3320,29 +3320,17 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
         {/* Scrollable body */}
         <div className="overflow-y-auto px-5 py-4 space-y-4">
           <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2.5 text-[12px] leading-snug text-muted">
-            One roster for the whole Club. Same rules as your league picks — 4 starters and 2 bench, earnings count, subs available mid-tournament. This entry is separate from your league rosters.
+            One roster, six starters, no bench. Every golfer's earnings count toward your Club Championship total. Separate from your league rosters and locked at first tee — no subs.
           </div>
 
           <section>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-sm">Starters</h3>
-              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">4 golfers · earnings count</span>
+              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">6 golfers · all count</span>
             </div>
             <div className="space-y-2">
-              {initialStarters.map((id, i) => (
-                <ClubChampPickRow key={i} slot={i+1} role="starter" name={golferName(id)} />
-              ))}
-            </div>
-          </section>
-
-          <section>
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-sm">Bench</h3>
-              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">2 golfers · subs only</span>
-            </div>
-            <div className="space-y-2">
-              {initialBench.map((id, i) => (
-                <ClubChampPickRow key={i} slot={i+1} role="bench" name={golferName(id)} />
+              {initialStarters.map((name, i) => (
+                <ClubChampPickRow key={i} slot={i+1} role="starter" name={name} />
               ))}
             </div>
           </section>
@@ -3352,12 +3340,12 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
               <h3 className="font-semibold text-sm">Score prediction</h3>
               <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">Tiebreaker</span>
             </div>
-            <div className="rounded-lg border border-line bg-white px-3 py-2.5 flex items-center justify-between gap-3">
+            <div className="rounded-lg border border-line bg-white px-3 py-3 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-sm font-semibold">Winning score</div>
-                <div className="text-[12px] text-dim">Used to break season-end ties.</div>
+                <div className="text-[12px] text-dim">Breaks ties in the Club Championship.</div>
               </div>
-              <div className="display-num font-bold text-lg shrink-0">-12</div>
+              <MiniScoreReel />
             </div>
           </section>
         </div>
@@ -3375,13 +3363,58 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
   );
 }
 
+// Compact scrollable score reel for the Club Championship entry preview.
+// Mirrors the full ScorePredictor's behavior at a smaller scale. Starts
+// centered on E (0), scroll to land on a value, snaps to nearest on settle.
+function MiniScoreReel() {
+  const ITEM_H  = 34;
+  const PADDING = ITEM_H; // half a slot of pad on either end so the center row fits
+  const scrollRef = useRef(null);
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const startIdx = SCORE_OPTIONS.indexOf(0);
+    scrollRef.current.scrollTop = startIdx * ITEM_H;
+  }, []);
+  const debounceRef = useRef(null);
+  const handleScroll = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const idx = Math.round(el.scrollTop / ITEM_H);
+      const clamped = Math.max(0, Math.min(SCORE_OPTIONS.length - 1, idx));
+      el.scrollTo({ top: clamped * ITEM_H, behavior: "smooth" });
+      setValue(SCORE_OPTIONS[clamped]);
+    }, 90);
+  };
+  return (
+    <div className="relative w-20 h-[102px] rounded-lg overflow-hidden border border-line shrink-0"
+      style={{ background: "var(--bg-2, #faf7ef)" }}>
+      {/* Center highlight band */}
+      <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-[34px] pointer-events-none"
+        style={{ background: "rgba(43,69,53,0.06)", borderTop: "1px solid rgba(43,69,53,0.18)", borderBottom: "1px solid rgba(43,69,53,0.18)" }}/>
+      <div ref={scrollRef} onScroll={handleScroll}
+        className="absolute inset-0 overflow-y-scroll text-center"
+        style={{ scrollSnapType: "y mandatory", paddingTop: PADDING + "px", paddingBottom: PADDING + "px", scrollbarWidth: "none" }}>
+        {SCORE_OPTIONS.map((s) => (
+          <div key={s} className="h-[34px] flex items-center justify-center text-base font-bold display-num"
+            style={{ scrollSnapAlign: "center", color: s === value ? "var(--green)" : "var(--text)" }}>
+            {fmtScoreToPar(s)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ClubChampPickRow({ slot, role, name }) {
   return (
     <div className="rounded-lg border border-line bg-white px-3 py-2.5 flex items-center gap-3">
-      <div className="w-6 text-[12px] font-mono text-dim shrink-0">{role === "starter" ? `S${slot}` : `B${slot}`}</div>
+      <div className="w-6 text-[12px] font-mono text-dim shrink-0">S{slot}</div>
       <div className="min-w-0 flex-1">
         <div className="text-sm font-semibold truncate">{name}</div>
-        <div className="text-[12px] text-dim">{role === "starter" ? "Counts toward team total" : "Subs in if a starter misses cut"}</div>
+        <div className="text-[12px] text-dim">Counts toward your Championship total</div>
       </div>
       <button type="button" disabled
         className="text-[11px] font-semibold text-dim px-2 py-1 rounded border border-line disabled:opacity-60 disabled:cursor-not-allowed">
