@@ -2677,7 +2677,7 @@ const PROSHOP_PRODUCTS = [
     id:       "bagtag",
     name:     "Member Bag Tag",
     tagline:  "Real wood · leather strap",
-    blurb:    "Solid wood face with the OnlyMajors mark on the front and your member number on the back. Tan leather strap.",
+    blurb:    "Solid wood face with the OnlyMajors mark on the front and your member name on the back. Tan leather strap.",
     sizing:   "One size",
     fit:      "contain",   // show the whole tag, no crop
     variants: [{ key: "wood", label: "Natural Wood", swatch: "#9b7654", img: "bagTagFront", gallery: ["bagTagFront", "bagTagBack"] }],
@@ -2941,14 +2941,14 @@ function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, o
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full transition-opacity hover:opacity-85"
-        style={{ background: "rgba(247,244,234,0.10)", color: "var(--bg-1)" }}>
+        className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full transition-colors hover:bg-black/[0.04]"
+        style={{ color: "var(--text)" }}>
         <span className="w-7 h-7 rounded-full flex items-center justify-center text-[12px] font-bold"
-          style={{ background: "var(--bg-1)", color: "var(--green)" }}>
+          style={{ background: "var(--green)", color: "var(--bg-1)" }}>
           {initials || "OM"}
         </span>
-        <span className="text-sm font-semibold">{label}</span>
-        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <span className="text-sm font-semibold hidden sm:inline">{label}</span>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9"/>
         </svg>
       </button>
@@ -3145,6 +3145,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   const nextMajor   = MAJORS.find(m => m.status === "upcoming");
   const focusMajor  = liveMajor || nextMajor || MAJORS[MAJORS.length - 1];
   const [livePreview, setLivePreview] = useState(false);
+  const [entryOpen,   setEntryOpen]   = useState(false);
   return (
     <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 space-y-4">
       {/* Header row */}
@@ -3176,14 +3177,22 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
       <button
         type="button"
         disabled={!livePreview}
+        onClick={() => livePreview && setEntryOpen(true)}
         className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
-        {livePreview ? "Enter the Club Championship" : "Enter the Club Championship"}
+        Enter the Club Championship
       </button>
       <div className="text-[11px] text-dim text-center">
         {livePreview
           ? "Sample data — what this section will look like once enrollment opens."
           : "Open enrollment goes live with the next Picks Open email."}
       </div>
+      {entryOpen && (
+        <ClubChampionshipEntryPreviewModal
+          focusMajor={focusMajor}
+          memberNumber={memberNumber}
+          authedUser={authedUser}
+          onClose={() => setEntryOpen(false)} />
+      )}
 
       {/* Hall of Fame dropdown — past winners per major */}
       <ClubChampionshipDropdown title="Hall of Fame" subtitle="Champion of each major"
@@ -3261,6 +3270,123 @@ function HallOfFameList({ livePreview = false }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Club Championship entry preview — opens when the live-preview CTA is clicked.
+// Shows what the roster-builder will look like once enrollment is live, so
+// members can visualize the picks experience before the real flow ships.
+function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUser, onClose }) {
+  // Pre-populate the 4 starters + 2 bench with realistic favorites so the
+  // roster feels alive. Members can tap "Change" to swap any slot — opens
+  // a small mock picker that just dismisses (preview only).
+  const youName = authedUser?.displayName?.split(/[\s@]/)[0] || "You";
+  const initialStarters = ["scottie", "rory", "rahm", "schauffele"];
+  const initialBench    = ["aberg", "jt"];
+  const golferName = (id) => {
+    const g = (typeof GOLFERS !== "undefined" ? GOLFERS : []).find(x => x.id === id);
+    return g?.name || id;
+  };
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center px-4 py-6"
+      onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: "#ffffff" }}
+        className="border border-line rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[92vh]">
+        {/* Header */}
+        <div className="px-5 pt-5 pb-3 border-b border-line">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 shrink-0 flex items-center justify-center">
+                <OnlyMajorsLogo size={44} full={true} />
+              </div>
+              <div className="min-w-0">
+                <div className="font-bold text-base leading-tight truncate">{focusMajor.short} · Club Championship</div>
+                <div className="text-[12px] text-dim mt-0.5">Member #{memberNumber ?? "—"} · {youName}</div>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-dim hover:text-text p-1 -m-1 shrink-0">
+              <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
+          </div>
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded"
+              style={{ background: "var(--green)", color: "var(--bg-1)" }}>Live preview</span>
+            <span className="text-[12px] text-dim">Locks at first tee · {focusMajor.teeTimeLabel}</span>
+          </div>
+        </div>
+
+        {/* Scrollable body */}
+        <div className="overflow-y-auto px-5 py-4 space-y-4">
+          <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2.5 text-[12px] leading-snug text-muted">
+            One roster for the whole Club. Same rules as your league picks — 4 starters and 2 bench, earnings count, subs available mid-tournament. This entry is separate from your league rosters.
+          </div>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-sm">Starters</h3>
+              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">4 golfers · earnings count</span>
+            </div>
+            <div className="space-y-2">
+              {initialStarters.map((id, i) => (
+                <ClubChampPickRow key={i} slot={i+1} role="starter" name={golferName(id)} />
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-sm">Bench</h3>
+              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">2 golfers · subs only</span>
+            </div>
+            <div className="space-y-2">
+              {initialBench.map((id, i) => (
+                <ClubChampPickRow key={i} slot={i+1} role="bench" name={golferName(id)} />
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="font-semibold text-sm">Score prediction</h3>
+              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">Tiebreaker</span>
+            </div>
+            <div className="rounded-lg border border-line bg-white px-3 py-2.5 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">Winning score</div>
+                <div className="text-[12px] text-dim">Used to break season-end ties.</div>
+              </div>
+              <div className="display-num font-bold text-lg shrink-0">-12</div>
+            </div>
+          </section>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 border-t border-line space-y-2">
+          <button type="button" disabled
+            className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+            Lock in picks
+          </button>
+          <div className="text-[11px] text-dim text-center">Preview only · the real entry flow opens with the next Picks Open email.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ClubChampPickRow({ slot, role, name }) {
+  return (
+    <div className="rounded-lg border border-line bg-white px-3 py-2.5 flex items-center gap-3">
+      <div className="w-6 text-[12px] font-mono text-dim shrink-0">{role === "starter" ? `S${slot}` : `B${slot}`}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold truncate">{name}</div>
+        <div className="text-[12px] text-dim">{role === "starter" ? "Counts toward team total" : "Subs in if a starter misses cut"}</div>
+      </div>
+      <button type="button" disabled
+        className="text-[11px] font-semibold text-dim px-2 py-1 rounded border border-line disabled:opacity-60 disabled:cursor-not-allowed">
+        Change
+      </button>
     </div>
   );
 }
