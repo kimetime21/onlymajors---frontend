@@ -1250,7 +1250,10 @@ function App() {
   // component that does TEAMS.find(t => t.id === viewAs) gets a hit on the
   // very first render after a new league appears.
   for (const lg of leagues) {
-    if (lg.teamId && !TEAMS.some(t => t.id === lg.teamId)) {
+    if (!lg.teamId) continue;
+    const existing = TEAMS.find(t => t.id === lg.teamId);
+    if (!existing) {
+      // Net-new team — push a full record.
       TEAMS.push({
         id:    lg.teamId,
         name:  lg.teamName || "My Team",
@@ -1259,6 +1262,12 @@ function App() {
         color: lg.teamColor || "#3A5F8A",
         mono:  (lg.teamName || "MT").slice(0, 2).toUpperCase(),
       });
+    } else if (lg.teamColor && existing.color !== lg.teamColor) {
+      // Team already in TEAMS (probably seeded), but the DB has a different
+      // color. Treat the server as the source of truth so the Hub and the
+      // in-league views render the same swatch. Also sync the name.
+      existing.color = lg.teamColor;
+      if (lg.teamName) existing.name = lg.teamName;
     }
   }
   const [authChecking, setAuthChecking] = useState(true);
@@ -2061,12 +2070,11 @@ function LoginScreen({ onAuthed }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
-        {/* Logo + brand */}
-        <div className="flex flex-col items-center mb-8">
-          <OnlyMajorsLogo size={130} full={true} className="mb-2" />
-          <div className="font-bold tracking-tight text-2xl">OnlyMajors</div>
-          <div className="text-[11px] uppercase tracking-[0.2em] text-dim mt-1">onlymajors.com</div>
-          <div className="text-sm text-muted mt-1">Fantasy golf when it counts</div>
+        {/* Logo + brand — bigger logo, just the wordmark below; slogan
+            lives in the footer beneath the card now. */}
+        <div className="flex flex-col items-center mb-6">
+          <OnlyMajorsLogo size={162} full={true} className="mb-3" />
+          <div className="font-bold tracking-tight text-3xl">OnlyMajors</div>
         </div>
 
         <div className="glass rounded-2xl p-6 space-y-4 fade-in">
@@ -2557,11 +2565,23 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
       </header>
 
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 fade-in">
-        <ProfileStatsCard firstName={firstName} authedUser={authedUser}
-          summary={summary} stats={careerStats}
+        {/* Welcome line — sets the country-club tone. */}
+        <div className="text-[12px] uppercase tracking-[0.22em] text-dim font-semibold mb-2">
+          Welcome to the Clubhouse{firstName ? `, ${firstName}` : ""}
+        </div>
+
+        {/* Membership card — avatar + member name + membership number. */}
+        <MembershipCard authedUser={authedUser} summary={summary}
           onOpenProfile={() => onOpenProfile && onOpenProfile(summary?.leagues?.[0]?.league?.id)} />
 
-        <div className="mt-2 mb-4">
+        {/* Handicap Stats — separate section, header matches Leagues. */}
+        <div className="mt-8 mb-4">
+          <h2 className="font-bold text-2xl tracking-tight">Handicap Stats</h2>
+          <p className="text-sm text-muted mt-0.5">Your career numbers across every major and season.</p>
+        </div>
+        <HandicapStatsCard stats={careerStats} />
+
+        <div className="mt-8 mb-4">
           <h2 className="font-bold text-2xl tracking-tight">Leagues</h2>
           <p className="text-sm text-muted mt-0.5">Pick a league to manage your picks.</p>
         </div>
@@ -2682,71 +2702,88 @@ function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, o
   );
 }
 
-function ProfileStatsCard({ firstName, authedUser, summary, stats, onOpenProfile }) {
+// Membership card — country-club energy. Avatar on the left, member name
+// and ascending membership number on the right. The number persists across
+// sessions and identifies the user for future merch / payments. Founder is #1.
+function MembershipCard({ authedUser, summary, onOpenProfile }) {
+  const displayName = authedUser.displayName || authedUser.email?.split("@")[0] || "Member";
   const initials = (authedUser.displayName || authedUser.email || "?")
     .split(/[\s@]/).filter(Boolean).map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
-  const leagueCount = summary?.leagues?.length || 0;
-  const hasStats = stats && (stats.tournCount > 0 || stats.seasonCount > 0 || stats.tournWins > 0 || stats.overallWins > 0);
-
+  const memberNumber =
+    summary?.me?.memberNumber ??
+    authedUser?.memberNumber ??
+    null;
   return (
-    <div className="rounded-2xl border border-line-2 bg-white p-5 sm:p-6 mb-6">
-      <div className="flex items-center gap-3 mb-4">
+    <div className="rounded-2xl border border-line-2 bg-white p-5 sm:p-6">
+      <div className="flex items-center gap-4">
         <button onClick={onOpenProfile} title="Profile settings"
-          className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-base shrink-0 hover:opacity-85 transition-opacity focus:outline-none focus:ring-2 focus:ring-green/40"
+          className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg shrink-0 hover:opacity-85 transition-opacity focus:outline-none focus:ring-2 focus:ring-green/40"
           style={{ background: "var(--green)", color: "var(--bg-1)" }}>
           {initials || "OM"}
         </button>
-        <div className="min-w-0">
-          <div className="font-bold text-xl tracking-tight truncate">Hi{firstName ? `, ${firstName}` : ""}</div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-[11px] uppercase tracking-[0.18em] font-semibold text-dim">Member name</span>
+          </div>
+          <div className="font-bold text-xl tracking-tight truncate">{displayName}</div>
+          <div className="mt-2 flex items-baseline gap-2 flex-wrap">
+            <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim">Membership number</span>
+            <span className="font-mono font-semibold text-[13px]" style={{ color: "var(--green)" }}>
+              {memberNumber != null ? `#${memberNumber}` : "—"}
+            </span>
+          </div>
         </div>
       </div>
+    </div>
+  );
+}
 
+// Handicap Stats — separate card that holds just the career numbers.
+// Visually consistent with the league cards below it.
+function HandicapStatsCard({ stats }) {
+  const hasStats = stats && (stats.tournCount > 0 || stats.seasonCount > 0 || stats.tournWins > 0 || stats.overallWins > 0);
+  return (
+    <div className="rounded-2xl border border-line-2 bg-white p-5 sm:p-6">
       {hasStats ? (
-        <>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] font-semibold text-dim">Career Stats</div>
-            <div className="flex-1 h-px bg-line"/>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <CareerStat
-              label="Tournament avg"
-              value={fmt(stats.tournAvg)}
-              sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
-            />
-            <CareerStat
-              label="Tournament PR"
-              value={fmt(stats.tournPR)}
-              sub="best single major"
-              highlight={stats.tournPR > 0}
-            />
-            <CareerStat
-              label="Tournament wins"
-              value={String(stats.tournWins)}
-              sub={stats.tournWins === 1 ? "major championship" : "major championships"}
-              highlight={stats.tournWins > 0}
-            />
-            <CareerStat
-              label="Season avg"
-              value={fmt(stats.overallAvg)}
-              sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
-            />
-            <CareerStat
-              label="Season PR"
-              value={fmt(stats.overallPR)}
-              sub="best full season"
-              highlight={stats.overallPR > 0}
-            />
-            <CareerStat
-              label="Season wins"
-              value={String(stats.overallWins)}
-              sub={stats.overallWins === 1 ? "season title" : "season titles"}
-              highlight={stats.overallWins > 0}
-            />
-          </div>
-        </>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <CareerStat
+            label="Tournament avg"
+            value={fmt(stats.tournAvg)}
+            sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
+          />
+          <CareerStat
+            label="Tournament PR"
+            value={fmt(stats.tournPR)}
+            sub="best single major"
+            highlight={stats.tournPR > 0}
+          />
+          <CareerStat
+            label="Tournament wins"
+            value={String(stats.tournWins)}
+            sub={stats.tournWins === 1 ? "major championship" : "major championships"}
+            highlight={stats.tournWins > 0}
+          />
+          <CareerStat
+            label="Season avg"
+            value={fmt(stats.overallAvg)}
+            sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
+          />
+          <CareerStat
+            label="Season PR"
+            value={fmt(stats.overallPR)}
+            sub="best full season"
+            highlight={stats.overallPR > 0}
+          />
+          <CareerStat
+            label="Season wins"
+            value={String(stats.overallWins)}
+            sub={stats.overallWins === 1 ? "season title" : "season titles"}
+            highlight={stats.overallWins > 0}
+          />
+        </div>
       ) : (
         <div className="text-xs text-dim italic">
-          Career stats will populate as your league archives load. Play a major and the tournament average updates automatically.
+          Handicap stats will populate as your league archives load. Play a major and the tournament average updates automatically.
         </div>
       )}
     </div>
@@ -3705,19 +3742,17 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
             </div>
           </div>
 
-          {/* All leagues (only shown when the user is in more than one) */}
-          {multiLeague && (
-            <button onClick={() => { onBackToHub && onBackToHub(); setOpen(false); }}
-              className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
-              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="5" height="5" rx="1"/>
-                <rect x="9" y="3" width="5" height="5" rx="1"/>
-                <rect x="2" y="10" width="5" height="3" rx="1"/>
-                <rect x="9" y="10" width="5" height="3" rx="1"/>
-              </svg>
-              All leagues
-            </button>
-          )}
+          {/* Clubhouse — landing page with career stats, league averages,
+              profile card, and league switcher. Always shown; the Clubhouse
+              earns its keep even for single-league users now. */}
+          <button onClick={() => { onBackToHub && onBackToHub(); setOpen(false); }}
+            className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 7l6-4 6 4v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7z"/>
+              <path d="M6 14V9h4v5"/>
+            </svg>
+            Clubhouse
+          </button>
 
           {/* Profile settings */}
           <button onClick={() => { onOpenProfile && onOpenProfile(); setOpen(false); }}
