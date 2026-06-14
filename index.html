@@ -120,6 +120,32 @@
   .om-darken-hover { transition: filter 180ms ease; }
   .om-darken-hover:hover { filter: brightness(0.85); }
 
+  /* Explore the Clubhouse pills — inverted hover (white→green + lift) and
+     a satisfying pressed feel on click. Icon stroke + text both flip to
+     cream. Slight upward translate on hover, scale-down on click. */
+  .om-explore-pill {
+    transition: background-color 180ms ease, color 180ms ease,
+                border-color 180ms ease, transform 120ms ease,
+                box-shadow 180ms ease;
+    will-change: transform;
+  }
+  .om-explore-pill:hover {
+    background: var(--green);
+    color: var(--bg-1);
+    border-color: var(--green);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px -6px rgba(43,69,53,0.35);
+  }
+  .om-explore-pill:active {
+    transform: translateY(0) scale(0.96);
+    box-shadow: 0 1px 3px -1px rgba(43,69,53,0.35) inset;
+    background: var(--green-2, #1f3327);
+  }
+  .om-explore-pill:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(43,69,53,0.25);
+  }
+
 
   .display-num {
     font-feature-settings: 'tnum' 1, 'ss01' 1;
@@ -1876,7 +1902,8 @@ function App() {
         {tab === "picks" && (
           <PicksTab viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor}
             picks={safePicks} setPicks={setPicksDraft} openPicker={setPickerState} openSub={setSubState} openSubOut={setSubOutState} onRemove={removePick}
-            syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} />
+            syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh}
+            leagueType={activeLeague?.leagueType || "all_four"} />
         )}
         {tab === "live"        && <LiveTab picks={safePicks} syncStatus={syncStatus} syncMessage={syncMessage} lastUpdated={lastUpdated} onRefresh={refresh} onGotoPicks={() => setTab("picks")} leagueId={activeLeagueId} />}
 
@@ -2571,10 +2598,13 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
         {/* Explore the Clubhouse — jump-nav to each section below. */}
         <ExploreClubhouseNav />
 
-        {/* Handicap Stats — separate section, header matches Leagues. */}
+        {/* Handicap Stats — separate section, header matches Leagues.
+            Strictly league play (4-starter format). Club Championship has
+            its own scoreboard in its own section, since the 6-starter total
+            isn't comparable to a 4-starter total. */}
         <div className="mt-8 mb-4">
           <h2 className="font-bold text-2xl tracking-tight">Handicap Stats</h2>
-          <p className="text-sm text-muted mt-0.5">Your career numbers across every major and season.</p>
+          <p className="text-sm text-muted mt-0.5">League play across every major and season. Club Championship results tracked separately below.</p>
         </div>
         <HandicapStatsCard stats={careerStats} />
 
@@ -2618,10 +2648,10 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
         </div>
 
         {/* Club Championship — platform-wide single-major contest, separate
-            from your leagues. Resets each major. */}
+            from your leagues. 6-starter format with its own scoreboard. */}
         <div id="ch-championship" className="mt-10 mb-4 scroll-mt-20">
           <h2 className="font-bold text-2xl tracking-tight">Club Championship</h2>
-          <p className="text-sm text-muted mt-0.5">A single-major tournament open to every OnlyMajors member. Resets each major.</p>
+          <p className="text-sm text-muted mt-0.5">Six starters, every member of the Club, one tournament. Tracked on its own scoreboard — doesn't roll into Handicap Stats.</p>
         </div>
         <ClubChampionshipCard authedUser={authedUser} memberNumber={summary?.me?.memberNumber} />
 
@@ -3122,7 +3152,7 @@ function ExploreClubhouseNav() {
       <div className="flex flex-wrap gap-2">
         {items.map(it => (
           <button key={it.id} onClick={() => jumpTo(it.id)}
-            className="inline-flex items-center gap-1.5 text-[13px] font-semibold rounded-md border border-line bg-white px-3 py-1.5 text-muted hover:text-text hover:border-line-2 transition-colors">
+            className="om-explore-pill inline-flex items-center gap-1.5 text-[13px] font-semibold rounded-md border border-line bg-white px-3 py-1.5 text-muted">
             {it.icon}
             {it.label}
           </button>
@@ -3146,46 +3176,110 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   const focusMajor  = liveMajor || nextMajor || MAJORS[MAJORS.length - 1];
   const [livePreview, setLivePreview] = useState(false);
   const [entryOpen,   setEntryOpen]   = useState(false);
+  const [hofOpen,     setHofOpen]     = useState(false);
+  const [avgOpen,     setAvgOpen]     = useState(false);
+  const [livePageOpen, setLivePageOpen] = useState(false);
+  // When the preview toggle flips, auto-open the dropdowns so you see the
+  // sample data right away.
+  React.useEffect(() => { setHofOpen(livePreview); setAvgOpen(livePreview); }, [livePreview]);
   return (
-    <div className="rounded-2xl border border-line bg-white p-5 sm:p-6 space-y-4">
-      {/* Header row */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 shrink-0 flex items-center justify-center">
-            <OnlyMajorsLogo size={48} full={true} />
-          </div>
-          <div className="min-w-0">
-            <div className="font-bold text-lg leading-tight">{focusMajor.short} · Club Championship</div>
-            <div className="text-[12px] text-dim mt-0.5">
-              {livePreview
-                ? <>Entries open · <span className="text-text font-semibold">2,341 members</span> enrolled · locks at first tee</>
-                : (liveMajor ? "Live now — entries closed at first tee." : `Picks open ${focusMajor.picksOpenLabel} · locks at first tee`)}
+    <div className="rounded-2xl border border-line bg-white overflow-hidden">
+      {/* Body — matches league-card top padding so the two sections feel like a set. */}
+      <div className="p-5 sm:p-6 space-y-4">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 shrink-0 flex items-center justify-center">
+              <OnlyMajorsLogo size={48} full={true} />
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-lg leading-tight">{focusMajor.short} · Club Championship</div>
+              <div className="text-[12px] text-dim mt-0.5">
+                {livePreview
+                  ? <>Entries open · <span className="text-text font-semibold">2,341 members</span> enrolled · locks at first tee</>
+                  : (liveMajor ? "Live now — entries closed at first tee." : `Picks open ${focusMajor.picksOpenLabel} · locks at first tee`)}
+              </div>
             </div>
           </div>
+          <button onClick={() => setLivePreview(v => !v)}
+            className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded shrink-0 transition-colors"
+            style={livePreview
+              ? { background: "var(--green)", color: "var(--bg-1)" }
+              : { background: "rgba(43,69,53,0.08)", color: "var(--green)" }}>
+            {livePreview ? "Live preview" : "Preview"}
+          </button>
         </div>
-        <button onClick={() => setLivePreview(v => !v)}
-          className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded shrink-0 transition-colors"
-          style={livePreview
-            ? { background: "var(--green)", color: "var(--bg-1)" }
-            : { background: "rgba(43,69,53,0.08)", color: "var(--green)" }}>
-          {livePreview ? "Live preview" : "Preview"}
+        <div className="text-sm text-muted leading-relaxed">
+          Six starters, every member of OnlyMajors, one tournament. Separate from your league picks. The winner of each Club Championship is enshrined in the Hall of Fame.
+        </div>
+        <button
+          type="button"
+          disabled={!livePreview}
+          onClick={() => livePreview && setEntryOpen(true)}
+          className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+          Enter the Club Championship
         </button>
+        {livePreview && (
+          <button type="button" onClick={() => setLivePageOpen(true)}
+            className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors flex items-center justify-center gap-1.5">
+            See what the live tournament page looks like
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 4l4 4-4 4"/>
+            </svg>
+          </button>
+        )}
+        <div className="text-[11px] text-dim text-center">
+          {livePreview
+            ? "Sample data — what this section will look like once enrollment opens."
+            : "Open enrollment goes live with the next Picks Open email."}
+        </div>
       </div>
-      <div className="text-sm text-muted leading-relaxed">
-        One roster, every member of OnlyMajors. Separate from your league picks. Winner of each Club Championship is enshrined in the Hall of Fame.
-      </div>
-      <button
-        type="button"
-        disabled={!livePreview}
-        onClick={() => livePreview && setEntryOpen(true)}
-        className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
-        Enter the Club Championship
+
+      {/* Hall of Fame — same dropdown shell as the league cards. */}
+      <button onClick={() => setHofOpen(o => !o)}
+        className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-gold" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 2v3a4 4 0 008 0V2"/>
+            <path d="M2 2h12"/>
+            <path d="M6 14h4M8 11v3"/>
+            <path d="M4 5a2 2 0 01-2-2"/>
+            <path d="M12 5a2 2 0 002-2"/>
+          </svg>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">Hall of Fame</span>
+        </div>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${hofOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
       </button>
-      <div className="text-[11px] text-dim text-center">
-        {livePreview
-          ? "Sample data — what this section will look like once enrollment opens."
-          : "Open enrollment goes live with the next Picks Open email."}
-      </div>
+      {hofOpen && (
+        <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
+          <HallOfFameList livePreview={livePreview} />
+        </div>
+      )}
+
+      {/* League-wide Averages — same shell, bar-chart icon. */}
+      <button onClick={() => setAvgOpen(o => !o)}
+        className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-green" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 14h12"/>
+            <rect x="3" y="8" width="2.5" height="5"/>
+            <rect x="6.75" y="5" width="2.5" height="8"/>
+            <rect x="10.5" y="2" width="2.5" height="11"/>
+          </svg>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">League-wide averages</span>
+        </div>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${avgOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {avgOpen && (
+        <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
+          <LeagueWideAveragesList memberNumber={memberNumber} authedUser={authedUser} livePreview={livePreview} />
+        </div>
+      )}
+
       {entryOpen && (
         <ClubChampionshipEntryPreviewModal
           focusMajor={focusMajor}
@@ -3193,44 +3287,198 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
           authedUser={authedUser}
           onClose={() => setEntryOpen(false)} />
       )}
-
-      {/* Hall of Fame dropdown — past winners per major */}
-      <ClubChampionshipDropdown title="Hall of Fame" subtitle="Champion of each major"
-        defaultOpen={livePreview}>
-        <HallOfFameList livePreview={livePreview} />
-      </ClubChampionshipDropdown>
-
-      {/* League-wide Averages dropdown — top 10 + you at the bottom */}
-      <ClubChampionshipDropdown title="League-wide Averages" subtitle="Where you stand against everyone"
-        defaultOpen={livePreview}>
-        <LeagueWideAveragesList memberNumber={memberNumber} authedUser={authedUser} livePreview={livePreview} />
-      </ClubChampionshipDropdown>
+      {livePageOpen && (
+        <ClubChampionshipLivePage
+          focusMajor={focusMajor}
+          memberNumber={memberNumber}
+          authedUser={authedUser}
+          onClose={() => setLivePageOpen(false)} />
+      )}
     </div>
   );
 }
 
-function ClubChampionshipDropdown({ title, subtitle, defaultOpen = false, children }) {
-  const [open, setOpen] = useState(defaultOpen);
-  // Re-honor defaultOpen when the parent toggles between preview modes.
-  React.useEffect(() => { setOpen(defaultOpen); }, [defaultOpen]);
+// Full-screen mock of the Club Championship page during a live tournament.
+// Header matches the Pro Shop / Clubhouse pattern. Includes a status banner
+// (live round), Top 10 leaderboard with running totals, your pinned standing,
+// your roster strip, and Recent updates. All data is hardcoded so members
+// can visualize the live experience before enrollment opens.
+function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClose }) {
+  const youName = authedUser?.displayName?.split(/[\s@]/)[0] || "You";
+  const top10 = [
+    { rank: 1,  name: "Mark D.",    total: 4845620 },
+    { rank: 2,  name: "Trey W.",    total: 4612300 },
+    { rank: 3,  name: "Jenna L.",   total: 4498875 },
+    { rank: 4,  name: "Sam R.",     total: 4380120 },
+    { rank: 5,  name: "Larry P.",   total: 4255000 },
+    { rank: 6,  name: "Boo P.",     total: 4112400 },
+    { rank: 7,  name: "Caleb J.",   total: 3998800 },
+    { rank: 8,  name: "Thorne H.",  total: 3922100 },
+    { rank: 9,  name: "Hannah M.",  total: 3877500 },
+    { rank: 10, name: "Cole T.",    total: 3812000 },
+  ];
+  const youRank  = 47;
+  const youTotal = 2841320;
+  const roster = [
+    { name: "Scottie Scheffler", total: 815000, pos: "T4",  status: "thru 14" },
+    { name: "Rory McIlroy",       total: 632400, pos: "T9",  status: "thru 12" },
+    { name: "Jon Rahm",           total: 489200, pos: "T15", status: "thru 11" },
+    { name: "Xander Schauffele",  total: 412800, pos: "T22", status: "F" },
+    { name: "Ludvig Åberg",       total: 287000, pos: "T31", status: "F" },
+    { name: "Justin Thomas",      total: 204920, pos: "MC",  status: "—" },
+  ];
+  const fmtM = (n) => `$${(n/1e6).toFixed(2)}M`;
+  const fmtK = (n) => n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : `$${(n/1000).toFixed(0)}K`;
   return (
-    <div className="rounded-xl border border-line">
-      <button type="button" onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left">
-        <div className="min-w-0 flex-1">
-          <div className="font-semibold text-sm">{title}</div>
-          <div className="text-[12px] text-dim mt-0.5">{subtitle}</div>
+    <div className="fixed inset-0 z-40 overflow-y-auto"
+      style={{ background: "var(--bg-1, #f5f1e8)" }}>
+      <header className="sticky top-0 z-10 backdrop-blur border-b border-line"
+        style={{ background: "var(--bg-1, #f5f1e8)" }}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3">
+          <BrandedHeaderRow
+            title="Club Championship"
+            subtitle={`${focusMajor.short} 2026`}
+            onClick={onClose}
+            right={
+              <span className="text-[11px] uppercase tracking-[0.18em] font-semibold px-2 py-1 rounded"
+                style={{ background: "var(--green)", color: "var(--bg-1)" }}>Live preview</span>
+            }
+          />
         </div>
-        <svg viewBox="0 0 16 16" className={`w-4 h-4 text-dim transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M4 6l4 4 4-4"/>
-        </svg>
-      </button>
-      {open && (
-        <div className="px-4 pb-4">
-          {children}
+      </header>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 fade-in space-y-5">
+        <div className="mb-1">
+          <BackToClubhousePill onClick={onClose} />
         </div>
-      )}
+
+        {/* Status banner — what the live tournament moment feels like */}
+        <div className="rounded-2xl border border-line-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, rgba(43,69,53,0.92), rgba(43,69,53,0.78))", color: "var(--bg-1)" }}>
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-14 h-14 shrink-0 flex items-center justify-center">
+                <OnlyMajorsLogo size={56} full={true} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] font-semibold opacity-80">
+                  <span className="w-1.5 h-1.5 bg-red-300 rounded-full live-dot"/>
+                  Round 3 in progress
+                </div>
+                <div className="font-bold text-xl tracking-tight mt-0.5">{focusMajor.name}</div>
+                <div className="text-[12px] opacity-80 mt-0.5">{focusMajor.course} · {focusMajor.city}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="leading-tight">
+                <div className="text-[10px] uppercase tracking-wider opacity-70">Entries</div>
+                <div className="display-num font-bold text-lg">2,341</div>
+              </div>
+              <div className="leading-tight border-l border-white/20 pl-3 sm:pl-4">
+                <div className="text-[10px] uppercase tracking-wider opacity-70">Leader</div>
+                <div className="display-num font-bold text-lg">{fmtM(top10[0].total)}</div>
+              </div>
+              <div className="leading-tight border-l border-white/20 pl-3 sm:pl-4">
+                <div className="text-[10px] uppercase tracking-wider opacity-70">Cut</div>
+                <div className="display-num font-bold text-lg">+2</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Your standing */}
+        <section>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold mb-2">Your standing</div>
+          <div className="rounded-2xl border border-line bg-white p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
+                  style={{ background: "var(--green)", color: "var(--bg-1)" }}>
+                  {youName[0]?.toUpperCase() || "M"}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-bold text-base leading-tight">{youName}</div>
+                  <div className="text-[12px] text-dim mt-0.5">Member #{memberNumber ?? "—"}</div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] uppercase tracking-wider text-dim">Rank</div>
+                <div className="display-num font-bold text-2xl">#{youRank}</div>
+              </div>
+              <div className="text-right border-l border-line pl-3 sm:pl-4">
+                <div className="text-[10px] uppercase tracking-wider text-dim">Total</div>
+                <div className="display-num font-bold text-2xl">{fmtM(youTotal)}</div>
+              </div>
+            </div>
+            {/* Roster strip */}
+            <div className="border-t border-line pt-3 space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-dim font-semibold mb-1.5">Your roster · 6 starters</div>
+              {roster.map((r, i) => (
+                <div key={i} className="flex items-center gap-3 text-[13px]">
+                  <div className="w-6 text-[11px] font-mono text-dim shrink-0">S{i+1}</div>
+                  <div className="flex-1 truncate font-medium">{r.name}</div>
+                  <div className={`w-12 text-right text-[11px] font-mono ${r.pos === "MC" ? "text-dim" : "text-muted"}`}>{r.pos}</div>
+                  <div className="w-12 text-right text-[11px] text-dim">{r.status}</div>
+                  <div className="w-16 text-right font-semibold">{fmtK(r.total)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Top 10 leaderboard */}
+        <section>
+          <div className="flex items-baseline justify-between mb-2">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold">Leaderboard</div>
+            <div className="text-[11px] text-dim">Top 10 of 2,341</div>
+          </div>
+          <div className="rounded-2xl border border-line bg-white overflow-hidden">
+            {top10.map((r) => (
+              <div key={r.rank}
+                className="flex items-center gap-3 px-4 py-2.5 border-b border-line last:border-0">
+                <div className={`w-7 text-[12px] font-mono font-semibold ${r.rank === 1 ? "text-gold" : r.rank <= 3 ? "text-muted" : "text-dim"}`}>
+                  #{r.rank}
+                </div>
+                <div className="flex-1 text-sm font-semibold truncate">{r.name}</div>
+                <div className="display-num font-bold text-sm">{fmtM(r.total)}</div>
+              </div>
+            ))}
+            {/* Pinned you-row */}
+            <div className="flex items-center gap-3 px-4 py-2.5 border-t-2 border-dashed border-line"
+              style={{ background: "rgba(43,69,53,0.06)" }}>
+              <div className="w-7 text-[12px] font-mono font-semibold" style={{ color: "var(--green)" }}>
+                #{youRank}
+              </div>
+              <div className="flex-1 text-sm font-semibold truncate">
+                {youName} <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>
+              </div>
+              <div className="display-num font-bold text-sm">{fmtM(youTotal)}</div>
+            </div>
+          </div>
+        </section>
+
+        {/* Recent updates */}
+        <section>
+          <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold mb-2">Recent updates</div>
+          <div className="rounded-2xl border border-line bg-white divide-y divide-line">
+            {[
+              ["2 min ago",  "Scottie Scheffler birdied 14 — moved to T4",      "+$48K"],
+              ["18 min ago", "Round 3 cut line settled at +2 — 71 players advance", null],
+              ["32 min ago", "Rory McIlroy bogeyed 11 — slipped to T9",          "-$22K"],
+              ["1 hr ago",   "Round 3 leaderboard live. Updates refresh every 60 seconds.", null],
+            ].map(([when, msg, delta], i) => (
+              <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-[13px]">
+                <div className="w-16 text-[11px] text-dim font-mono shrink-0">{when}</div>
+                <div className="flex-1 leading-snug">{msg}</div>
+                {delta && <div className={`text-[12px] font-semibold ${delta.startsWith("+") ? "text-green" : "text-red"}`}>{delta}</div>}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="text-center text-[12px] text-dim pb-4">
+          Sample data — the real live page populates from DataGolf once the contest goes active.
+        </div>
+      </main>
     </div>
   );
 }
@@ -4879,7 +5127,12 @@ function MajorSelectorDropdown({ viewAs, selectedMajor, setSelectedMajor }) {
   );
 }
 
-function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, openPicker, openSub, openSubOut, onRemove, syncStatus, lastUpdated, onRefresh }) {
+function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, openPicker, openSub, openSubOut, onRemove, syncStatus, lastUpdated, onRefresh, leagueType = "all_four" }) {
+  // Single-major leagues use a 6-starter / no-bench / no-subs format,
+  // matching the Club Championship contest shape.
+  const sixStarter = leagueType === "single_major";
+  const starterCount = sixStarter ? 6 : 4;
+  const benchCount   = sixStarter ? 0 : 2;
   const team = TEAMS.find(t => t.id === viewAs);
   const major = M[selectedMajor];
   const slot = picks[viewAs][selectedMajor];
@@ -4928,22 +5181,36 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
         <PicksClosedGate major={major} />
       ) : (
         <>
-          {/* Subs locked banner — only shown when major is live AND a round is currently in progress */}
-          {major.status === "live" && activeRoundInProgress(major) && (
+          {/* Subs locked banner — only shown when major is live AND a round
+              is currently in progress. Single-major leagues have no subs,
+              so the banner stays hidden for them. */}
+          {!sixStarter && major.status === "live" && activeRoundInProgress(major) && (
             <SubsLockedBanner major={major} />
           )}
 
-          {/* Starters */}
+          {/* Starters — 6 for single-major leagues, 4 for everything else. */}
           <section>
-            <SectionHeader title="Starters" sub="4 golfers · earnings count toward team total" tag={major.status === "complete" ? "FINAL" : major.status === "live" ? "LIVE" : "ROSTER"} />
-            <div className="mb-3 rounded-md border border-line bg-tile/40 px-3 py-2 text-[11px] leading-snug text-dim">
-              Naming a golfer as a starter counts as playing them — even if you sub them out later. Subbing them out stops their earnings, but their season slot is spent.
-            </div>
+            <SectionHeader
+              title="Starters"
+              sub={sixStarter
+                ? `${starterCount} golfers · all earnings count`
+                : `${starterCount} golfers · earnings count toward team total`}
+              tag={major.status === "complete" ? "FINAL" : major.status === "live" ? "LIVE" : "ROSTER"} />
+            {!sixStarter && (
+              <div className="mb-3 rounded-md border border-line bg-tile/40 px-3 py-2 text-[11px] leading-snug text-dim">
+                Naming a golfer as a starter counts as playing them — even if you sub them out later. Subbing them out stops their earnings, but their season slot is spent.
+              </div>
+            )}
+            {sixStarter && (
+              <div className="mb-3 rounded-md border border-line bg-tile/40 px-3 py-2 text-[11px] leading-snug text-dim">
+                Single-major format: lock in six golfers, no bench, no subs. Every starter's earnings count toward your team total.
+              </div>
+            )}
             <div className="space-y-2">
-              {[0,1,2,3].map(i => (
+              {Array.from({ length: starterCount }, (_, i) => (
                 <PickRow key={i} role="starter" slotIndex={i+1} golferId={slot.starters[i]} majorId={selectedMajor} major={major}
                   isIn={isGolferIn(slot, slot.starters[i])}
-                  canSubOut={canSubInMajor(major) && slot.starters[i] != null && slot.bench.some(x => x != null) && isGolferIn(slot, slot.starters[i])}
+                  canSubOut={!sixStarter && canSubInMajor(major) && slot.starters[i] != null && slot.bench.some(x => x != null) && isGolferIn(slot, slot.starters[i])}
                   onClick={() => major.status !== "complete" && openPicker({ slotType: "starter", slotIndex: i })}
                   onSubOut={() => openSubOut({ starterIndex: i })}
                   onRemove={() => onRemove(selectedMajor, "starter", i)} />
@@ -4951,20 +5218,22 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
             </div>
           </section>
 
-          {/* Bench */}
-          <section>
-            <SectionHeader title="Bench" sub="2 golfers · earnings only count if subbed in" tag="RESERVE" />
-            <div className="space-y-2">
-              {[0,1].map(i => (
-                <PickRow key={i} role="bench" slotIndex={i+1} golferId={slot.bench[i]} majorId={selectedMajor} major={major}
-                  isIn={isGolferIn(slot, slot.bench[i])}
-                  canSub={canSubInMajor(major) && slot.bench[i] != null && !isGolferIn(slot, slot.bench[i])}
-                  onClick={() => major.status !== "complete" && openPicker({ slotType: "bench", slotIndex: i })}
-                  onSub={() => openSub({ benchIndex: i })}
-                  onRemove={() => onRemove(selectedMajor, "bench", i)} />
-              ))}
-            </div>
-          </section>
+          {/* Bench — hidden entirely in single-major (6-starter) leagues. */}
+          {benchCount > 0 && (
+            <section>
+              <SectionHeader title="Bench" sub={`${benchCount} golfers · earnings only count if subbed in`} tag="RESERVE" />
+              <div className="space-y-2">
+                {Array.from({ length: benchCount }, (_, i) => (
+                  <PickRow key={i} role="bench" slotIndex={i+1} golferId={slot.bench[i]} majorId={selectedMajor} major={major}
+                    isIn={isGolferIn(slot, slot.bench[i])}
+                    canSub={canSubInMajor(major) && slot.bench[i] != null && !isGolferIn(slot, slot.bench[i])}
+                    onClick={() => major.status !== "complete" && openPicker({ slotType: "bench", slotIndex: i })}
+                    onSub={() => openSub({ benchIndex: i })}
+                    onRemove={() => onRemove(selectedMajor, "bench", i)} />
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
 
