@@ -2483,6 +2483,13 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
     let overallPR = 0;  // highest season-long earnings (closed seasons only)
     const MIDS = ["masters","pga","usopen","open"];
     for (const entry of summary.leagues) {
+      // Handicap Stats only count 4-starter league play. Single-major
+      // leagues use a 6-starter format (matching the Club Championship),
+      // so their numbers aren't directly comparable — skip them across
+      // archive + current-season folding. This applies to every user the
+      // same way and self-handles any future single-major league a user
+      // joins or creates.
+      if (entry.league?.leagueType === "single_major") continue;
       const myTeamId = entry.myTeam.teamId;
       // Archived years
       const archive = archivesByLeague[entry.league.id];
@@ -3165,8 +3172,8 @@ function ExploreClubhouseNav() {
 // ─────────────────────────────────────────────────────────────────────────
 // Club Championship — single-major contest open to every OnlyMajors member,
 // separate from their leagues. Resets each major. Includes Hall of Fame
-// dropdown (winner-per-major archive) and a League-wide Averages dropdown
-// (top 10 + the viewing user pinned at the bottom if outside the top 10).
+// dropdown (winner-per-major archive) and a Club Championship Averages
+// dropdown (top 10 + viewing user pinned at the bottom if outside the top 10).
 // Built as a UI scaffold for now; backend hooks come once we have enrollment.
 // ─────────────────────────────────────────────────────────────────────────
 function ClubChampionshipCard({ authedUser, memberNumber }) {
@@ -3179,9 +3186,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   const [hofOpen,     setHofOpen]     = useState(false);
   const [avgOpen,     setAvgOpen]     = useState(false);
   const [livePageOpen, setLivePageOpen] = useState(false);
-  // When the preview toggle flips, auto-open the dropdowns so you see the
-  // sample data right away.
-  React.useEffect(() => { setHofOpen(livePreview); setAvgOpen(livePreview); }, [livePreview]);
+  // Dropdowns stay user-controlled — never auto-open with preview toggle.
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
       {/* Body — matches league-card top padding so the two sections feel like a set. */}
@@ -3258,7 +3263,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
         </div>
       )}
 
-      {/* League-wide Averages — same shell, bar-chart icon. */}
+      {/* Club Championship Averages — same shell, bar-chart icon. */}
       <button onClick={() => setAvgOpen(o => !o)}
         className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
         <div className="flex items-center gap-2">
@@ -3268,7 +3273,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
             <rect x="6.75" y="5" width="2.5" height="8"/>
             <rect x="10.5" y="2" width="2.5" height="11"/>
           </svg>
-          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">League-wide averages</span>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">Club Championship averages</span>
         </div>
         <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${avgOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="6 9 12 15 18 9"/>
@@ -3295,6 +3300,34 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
           onClose={() => setLivePageOpen(false)} />
       )}
     </div>
+  );
+}
+
+// Reusable "Recent updates" feed. Renders a styled event log card; takes
+// an array of { when, message, delta } rows. Used by the Club Championship
+// live page and the in-league Live tab.
+function LiveUpdatesFeed({ updates, title = "Recent updates", note }) {
+  if (!updates || updates.length === 0) return null;
+  return (
+    <section>
+      <div className="flex items-baseline justify-between mb-2">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold">{title}</div>
+        {note && <div className="text-[11px] text-dim">{note}</div>}
+      </div>
+      <div className="rounded-2xl border border-line bg-white divide-y divide-line">
+        {updates.map((u, i) => (
+          <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-[13px]">
+            <div className="w-16 text-[11px] text-dim font-mono shrink-0">{u.when}</div>
+            <div className="flex-1 leading-snug">{u.message}</div>
+            {u.delta && (
+              <div className={`text-[12px] font-semibold ${u.delta.startsWith("+") ? "text-green" : "text-red"}`}>
+                {u.delta}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -3457,23 +3490,12 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
         </section>
 
         {/* Recent updates */}
-        <section>
-          <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold mb-2">Recent updates</div>
-          <div className="rounded-2xl border border-line bg-white divide-y divide-line">
-            {[
-              ["2 min ago",  "Scottie Scheffler birdied 14 — moved to T4",      "+$48K"],
-              ["18 min ago", "Round 3 cut line settled at +2 — 71 players advance", null],
-              ["32 min ago", "Rory McIlroy bogeyed 11 — slipped to T9",          "-$22K"],
-              ["1 hr ago",   "Round 3 leaderboard live. Updates refresh every 60 seconds.", null],
-            ].map(([when, msg, delta], i) => (
-              <div key={i} className="px-4 py-2.5 flex items-start gap-3 text-[13px]">
-                <div className="w-16 text-[11px] text-dim font-mono shrink-0">{when}</div>
-                <div className="flex-1 leading-snug">{msg}</div>
-                {delta && <div className={`text-[12px] font-semibold ${delta.startsWith("+") ? "text-green" : "text-red"}`}>{delta}</div>}
-              </div>
-            ))}
-          </div>
-        </section>
+        <LiveUpdatesFeed updates={[
+          { when: "2 min ago",  message: "Scottie Scheffler birdied 14 — moved to T4",                       delta: "+$48K" },
+          { when: "18 min ago", message: "Round 3 cut line settled at +2 — 71 players advance",              delta: null    },
+          { when: "32 min ago", message: "Rory McIlroy bogeyed 11 — slipped to T9",                          delta: "-$22K" },
+          { when: "1 hr ago",   message: "Round 3 leaderboard live. Updates refresh every 60 seconds.",      delta: null    },
+        ]} />
 
         <div className="text-center text-[12px] text-dim pb-4">
           Sample data — the real live page populates from DataGolf once the contest goes active.
@@ -6182,6 +6204,30 @@ function EmptyLiveState({ major }) {
   );
 }
 
+// Realistic-feeling event log for the in-league Live tab. Uses the actual
+// team names + their starters from the picks state so the feed feels alive
+// even before DataGolf event polling is wired up. Always returns 4 entries.
+function buildLeagueUpdatesMock(rows, viewed) {
+  if (!rows || rows.length === 0) return [];
+  const getGolferName = (gid) => {
+    if (!gid) return "their starter";
+    const g = (typeof GOLFERS !== "undefined" ? GOLFERS : []).find(x => x.id === gid);
+    return g?.name || gid;
+  };
+  const leader = rows[0];
+  const challenger = rows[1] || rows[0];
+  const slipper = rows[rows.length - 1];
+  const leaderStarter = getGolferName(leader.starters?.[0]);
+  const challengerStarter = getGolferName(challenger.starters?.[0]);
+  const slipStarter = getGolferName(slipper.starters?.[0]);
+  return [
+    { when: "3 min ago",   message: `${leader.team.name}'s ${leaderStarter} birdied 14 — moved to T4`, delta: "+$48K" },
+    { when: "19 min ago",  message: `${viewed.short} cut line settled at +2 — 71 players advance`,    delta: null    },
+    { when: "34 min ago",  message: `${slipper.team.name}'s ${slipStarter} bogeyed 11 — slipped to T22`, delta: "-$22K" },
+    { when: "1 hr ago",    message: `R${viewed.currentRound || 3} live. Live updates refresh every 60 seconds.`, delta: null },
+  ];
+}
+
 function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGotoPicks, leagueId }) {
   const liveMajor    = MAJORS.find(m => m.status === "live");
   const lastComplete = [...MAJORS].reverse().find(m => m.status === "complete");
@@ -6298,6 +6344,11 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
               <LiveTeamRow key={row.team.id} row={row} rank={idx+1} majorId={viewed.id} leader={rows[0].total} />
             ))}
           </div>
+
+          {/* Recent updates — same shape as the Club Championship live page,
+              populated with league-aware events. Static mock for now; will
+              wire to DataGolf events once the backend pushes them. */}
+          {isLive && <LiveUpdatesFeed updates={buildLeagueUpdatesMock(rows, viewed)} />}
 
           {/* Score Predictions */}
           <ScorePredictionsPanel picks={picks} majorId={viewed.id} leagueId={leagueId} />
