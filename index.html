@@ -1888,7 +1888,8 @@ function App() {
         onOpenOnboarding={() => setOnboardingMode("manual")} leagueId={activeLeagueId}
         leagueName={activeLeague?.name || "League"}
         foundedYear={activeLeague?.foundedYear || null} />
-      <TabBar tab={tab} setTab={setTab} />
+      <TabBar tab={tab} setTab={setTab}
+        leftSlot={<BackToClubhousePill onClick={() => setActiveLeagueId(null)} />} />
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 fade-in" key={tab}>
         {tab === "picks" && (
           <PicksTab viewAs={viewAs} selectedMajor={selectedMajor} setSelectedMajor={setSelectedMajor}
@@ -2028,10 +2029,10 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
   return (
     <header className="border-b border-line bg-bg2/60 backdrop-blur-xl sticky top-0 z-30">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
-        {/* Row 1 — back-to-Clubhouse pill on the far left, branded header
-            in the middle, user menu on the right — all in one flush row. */}
+        {/* Row 1 — branded header row, user menu on the right. The
+            back-to-Clubhouse pill lives in the TabBar below so it's even
+            with the tab labels (My Picks / Live / etc). */}
         <BrandedHeaderRow
-          left={<BackToClubhousePill onClick={onBackToHub} />}
           title={leagueName || "League"}
           subtitle={foundedYear ? `EST ${foundedYear}` : null}
           onClick={onBackToHub}
@@ -4898,7 +4899,7 @@ function TeamSelector({ value, onChange }) {
   );
 }
 
-function TabBar({ tab, setTab }) {
+function TabBar({ tab, setTab, leftSlot }) {
   const tabs = [
     { id: "picks",       label: "My Picks" },
     { id: "live",        label: "Live" },
@@ -4907,14 +4908,18 @@ function TabBar({ tab, setTab }) {
   ];
   return (
     <nav className="border-b border-line bg-bg2/40 backdrop-blur-xl sticky top-[57px] sm:top-[65px] z-20">
-      <div className="max-w-6xl mx-auto px-2 sm:px-6 flex overflow-x-auto scrollbar-hide justify-center">
-        {tabs.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            className={`relative px-4 sm:px-5 py-3 text-sm font-semibold whitespace-nowrap transition-colors ${tab===t.id ? "text-text" : "text-dim hover:text-muted"}`}>
-            {t.label}
-            {tab===t.id && <span className="absolute left-3 right-3 -bottom-px h-0.5 bg-green rounded-full glow-green"/>}
-          </button>
-        ))}
+      <div className="max-w-6xl mx-auto px-2 sm:px-6 flex items-center gap-3">
+        {/* Far-left slot — currently used for the back-to-Clubhouse pill */}
+        {leftSlot && <div className="shrink-0 py-2">{leftSlot}</div>}
+        <div className="flex-1 flex overflow-x-auto scrollbar-hide justify-center">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`relative px-4 sm:px-5 py-3 text-sm font-semibold whitespace-nowrap transition-colors ${tab===t.id ? "text-text" : "text-dim hover:text-muted"}`}>
+              {t.label}
+              {tab===t.id && <span className="absolute left-3 right-3 -bottom-px h-0.5 bg-green rounded-full glow-green"/>}
+            </button>
+          ))}
+        </div>
       </div>
     </nav>
   );
