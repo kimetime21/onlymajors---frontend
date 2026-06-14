@@ -1311,6 +1311,11 @@ function App() {
   const [authedUser, setAuthedUser] = useState(null);   // { id, email, displayName } from server
   const [leagues, setLeagues]       = useState([]);     // { id, teamId, teamName, ... }
   const [activeLeagueId, setActiveLeagueId] = useState(null);   // null = show Hub
+  const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
+  // We need a reference to the leagues-summary for the Account Settings
+  // overlay's first/last name initial values — store it at App level so
+  // both the Clubhouse and any league page can hand the same summary in.
+  const [appSummary, setAppSummary] = useState(null);
   // Ensure TEAMS has an entry for every league the user belongs to. Module-
   // level mutation, idempotent. Runs synchronously during render so any child
   // component that does TEAMS.find(t => t.id === viewAs) gets a hit on the
@@ -1882,11 +1887,8 @@ function App() {
           // can't see the TabBar to switch off Picks.
           window.scrollTo({ top: 0, behavior: "instant" });
         }}
-        onOpenProfile={(id) => {
-          setActiveLeagueId(id || leagues[0]?.id);
-          setTab("profile");
-          window.scrollTo({ top: 0, behavior: "instant" });
-        }}
+        onOpenProfile={() => setAccountSettingsOpen(true)}
+        onSummaryLoaded={setAppSummary}
         onLeaguesChanged={(nextLeagues, nextActiveId) => {
           setLeagues(nextLeagues);
           if (nextActiveId) setActiveLeagueId(nextActiveId);
@@ -1894,6 +1896,26 @@ function App() {
         onSignOut={signOut}
         onOpenOnboarding={() => setOnboardingMode("manual")} />
       {onboardingMode && <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} />}
+      {accountSettingsOpen && (
+        <AccountSettingsOverlay authedUser={authedUser} summary={appSummary}
+          onClose={() => setAccountSettingsOpen(false)}
+          onSaved={async (fields) => {
+            // Send account-level fields to any owned team via the existing
+            // /api/profiles/:teamId path (server unwinds to users-table updates).
+            const teamId = leagues[0]?.teamId;
+            if (!teamId) return;
+            await saveProfileAPI(teamId, {
+              firstName: fields.firstName,
+              lastName:  fields.lastName,
+              email:     fields.email,
+            });
+            // Refresh authedUser shape so MembershipCard and others see new values.
+            try {
+              const fresh = await apiMe();
+              setAuthedUser(fresh.user);
+            } catch {}
+          }} />
+      )}
     </>
   );
   if (!user) return <div className="min-h-screen flex items-center justify-center text-dim text-sm">Loading league…</div>;
@@ -1925,13 +1947,31 @@ function App() {
         {tab === "chat"        && <ChatTab user={user} picks={safePicks} messages={chatMessages} onSend={sendMessage} leagueId={activeLeagueId} />}
         {tab === "leaderboard" && <LeaderboardTab picks={safePicks} viewAs={viewAs} leagueId={activeLeagueId} />}
         {tab === "league"      && <LeagueTab />}
-        {tab === "profile"     && <ProfileTab user={user} onSave={saveProfile} onBack={() => setTab("picks")} />}
+        {tab === "profile"     && <ProfileTab user={user} onSave={saveProfile} onBack={() => setTab("picks")} onOpenAccountSettings={() => setAccountSettingsOpen(true)} />}
       </main>
       <Footer />
       <SyncToast status={syncStatus} message={syncMessage} />
 
       {onboardingMode && (
         <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} />
+      )}
+
+      {accountSettingsOpen && (
+        <AccountSettingsOverlay authedUser={authedUser} summary={appSummary}
+          onClose={() => setAccountSettingsOpen(false)}
+          onSaved={async (fields) => {
+            const teamId = activeLeague?.teamId || leagues[0]?.teamId;
+            if (!teamId) return;
+            await saveProfileAPI(teamId, {
+              firstName: fields.firstName,
+              lastName:  fields.lastName,
+              email:     fields.email,
+            });
+            try {
+              const fresh = await apiMe();
+              setAuthedUser(fresh.user);
+            } catch {}
+          }} />
       )}
 
       {pickerState && (
@@ -2439,7 +2479,7 @@ function AuthField({ label, type, value, onChange, placeholder }) {
    with picks status, season standing, and live position. CTAs to join + start
    another league.
    ========================================================================= */
-function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpenProfile, onLeaguesChanged, onSignOut, onOpenOnboarding }) {
+function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpenProfile, onLeaguesChanged, onSignOut, onOpenOnboarding, onSummaryLoaded }) {
   const [summary, setSummary] = useState(null);
   const [archivesByLeague, setArchivesByLeague] = useState({});   // { [leagueId]: { years: [...] } }
   const [loading, setLoading] = useState(true);
@@ -2471,7 +2511,7 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
     let cancelled = false;
     setLoading(true); setError("");
     apiLeaguesSummary()
-      .then(r => { if (!cancelled) { setSummary(r); syncUp(r); } })
+      .then(r => { if (!cancelled) { setSummary(r); syncUp(r); onSummaryLoaded?.(r); } })
       .catch(e => { if (!cancelled) setError(e.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -3038,7 +3078,7 @@ function ProShopPreviewModal({ onClose }) {
 // tournament avg, overall avg, tournament wins, overall wins.
 // Hub top-right user menu — mirrors the in-league UserMenu but skinned for the
 // green Hub header. Trigger shows initials + first name + chevron; dropdown
-// has Profile settings / How it works / Sign out.
+// has Account settings / How it works / Sign out.
 function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, onSignOut }) {
   const [open, setOpen] = useState(false);
   const ref = React.useRef(null);
@@ -3082,7 +3122,7 @@ function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, o
               <circle cx="8" cy="6" r="3"/>
               <path d="M2 14c0-3 3-5 6-5s6 2 6 5"/>
             </svg>
-            Profile settings
+            Account settings
           </button>
           <button onClick={() => { onOpenOnboarding && onOpenOnboarding(); setOpen(false); }}
             className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
@@ -3110,16 +3150,19 @@ function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, o
 // and ascending membership number on the right. The number persists across
 // sessions and identifies the user for future merch / payments. Founder is #1.
 function MembershipCard({ authedUser, summary, onOpenProfile }) {
-  // Prefer "First Last" if we have them; fall back to the display name or
-  // email-local. The full name is the right thing to show in the Clubhouse,
-  // since this card is the country-club membership identity.
-  const fullName = (authedUser.firstName && authedUser.lastName)
-    ? `${authedUser.firstName} ${authedUser.lastName}`
-    : (authedUser.firstName || authedUser.displayName || authedUser.email?.split("@")[0] || "Member");
-  // Initials come from the full name so they're stable even after a display
-  // name customization.
-  const seed = (authedUser.firstName || authedUser.displayName || authedUser.email || "?")
-    + " " + (authedUser.lastName || "");
+  // Prefer fresh summary data (refetched on every Clubhouse load) over the
+  // auth-time snapshot in authedUser, which can be stale after a profile edit.
+  const firstName = summary?.me?.firstName ?? authedUser.firstName ?? null;
+  const lastName  = summary?.me?.lastName  ?? authedUser.lastName  ?? null;
+  const hasFullName = !!(firstName && lastName);
+  // Full name renders First + Last when both are set. Otherwise we show
+  // whatever we have plus a small "Add your last name" prompt below.
+  const fullName = hasFullName
+    ? `${firstName} ${lastName}`
+    : (firstName || authedUser.displayName || authedUser.email?.split("@")[0] || "Member");
+  // Initials are stable across display-name edits.
+  const seed = (firstName || authedUser.displayName || authedUser.email || "?")
+    + " " + (lastName || "");
   const initials = seed.split(/[\s@]/).filter(Boolean)
     .map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
   const memberNumber =
@@ -3129,7 +3172,7 @@ function MembershipCard({ authedUser, summary, onOpenProfile }) {
   return (
     <div className="rounded-2xl border border-line-2 bg-white p-5 sm:p-6">
       <div className="flex items-center gap-4">
-        <button onClick={onOpenProfile} title="Profile settings"
+        <button onClick={onOpenProfile} title="Account settings"
           className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-lg shrink-0 hover:opacity-85 transition-opacity focus:outline-none focus:ring-2 focus:ring-green/40"
           style={{ background: "var(--green)", color: "var(--bg-1)" }}>
           {initials || "OM"}
@@ -3139,6 +3182,12 @@ function MembershipCard({ authedUser, summary, onOpenProfile }) {
             <span className="text-[11px] uppercase tracking-[0.18em] font-semibold text-dim">Member name</span>
           </div>
           <div className="font-bold text-xl tracking-tight truncate">{fullName}</div>
+          {!hasFullName && (
+            <button onClick={onOpenProfile}
+              className="text-[11px] text-dim hover:text-text underline underline-offset-2 mt-0.5">
+              Add your {firstName ? "last name" : "name"} →
+            </button>
+          )}
           <div className="mt-2 flex items-baseline gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim">Membership number</span>
             <span className="font-mono font-semibold text-[13px]" style={{ color: "var(--green)" }}>
@@ -4828,14 +4877,14 @@ function UserMenu({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onO
             Clubhouse
           </button>
 
-          {/* Profile settings */}
+          {/* League settings (per-league display name / team name / picture). */}
           <button onClick={() => { onOpenProfile && onOpenProfile(); setOpen(false); }}
             className="w-full px-3 py-2.5 text-left text-sm font-medium text-text hover:bg-black/[0.03] transition-colors flex items-center gap-2 border-b border-line">
             <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-dim" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="8" cy="6" r="3"/>
               <path d="M2 14c0-3 3-5 6-5s6 2 6 5"/>
             </svg>
-            Profile settings
+            League settings
           </button>
 
           {/* How OnlyMajors works (re-open the onboarding carousel) */}
@@ -7169,7 +7218,160 @@ function LocksWidget({ picks, viewAs, leagueId }) {
 /* =========================================================================
    PROFILE SETTINGS
    ========================================================================= */
-function ProfileTab({ user, onSave, onBack }) {
+// ─────────────────────────────────────────────────────────────────────────
+// Account Settings — account-wide identity. Opened from the Clubhouse user
+// menu OR from the in-league League Settings "Account Settings" pill.
+// Holds first/last name, the read-only Club Championship handle (always
+// "First L." for continuity), email, password, and notification toggles.
+// Rendered as a portal overlay so it can be opened from any context.
+// ─────────────────────────────────────────────────────────────────────────
+function AccountSettingsOverlay({ authedUser, summary, onClose, onSaved }) {
+  const [firstName, setFirstName] = useState(summary?.me?.firstName ?? authedUser?.firstName ?? "");
+  const [lastName,  setLastName]  = useState(summary?.me?.lastName  ?? authedUser?.lastName  ?? "");
+  const [email,     setEmail]     = useState(authedUser?.email || "");
+  const [busy,      setBusy]      = useState(false);
+  const [toast,     setToast]     = useState("");
+  // Password change is its own form (same component used in old ProfileTab).
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw,     setNewPw]     = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwError,   setPwError]   = useState("");
+  const [pwOk,      setPwOk]      = useState("");
+  const [pwBusy,    setPwBusy]    = useState(false);
+
+  // Club Championship display name = "First L." — auto-derived, not user-
+  // editable. Keeps Club Championship leaderboards / HoF readable across
+  // members regardless of league-side display-name customizations.
+  const ccDisplay = (firstName.trim() && lastName.trim())
+    ? `${firstName.trim()} ${lastName.trim()[0].toUpperCase()}.`
+    : (firstName.trim() || "—");
+
+  // Lock body scroll while open.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  const saveAccount = async () => {
+    if (!firstName.trim()) { setToast("First name can't be empty"); return; }
+    if (!lastName.trim())  { setToast("Last name can't be empty"); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email)) { setToast("That email doesn't look right"); return; }
+    setBusy(true); setToast("");
+    try {
+      await onSaved?.({
+        firstName: firstName.trim(),
+        lastName:  lastName.trim(),
+        email:     email.trim(),
+      });
+      setToast("Saved");
+      setTimeout(() => setToast(""), 2200);
+    } catch (e) {
+      setToast(e.message || "Save failed");
+    } finally { setBusy(false); }
+  };
+
+  const submitPassword = async (e) => {
+    e.preventDefault();
+    setPwError(""); setPwOk("");
+    if (!currentPw) return setPwError("Enter your current password.");
+    if (newPw.length < 8) return setPwError("New password must be at least 8 characters.");
+    if (newPw !== confirmPw) return setPwError("New passwords don't match.");
+    if (newPw === currentPw) return setPwError("New password must be different from current password.");
+    setPwBusy(true);
+    try {
+      await apiChangePassword({ currentPassword: currentPw, newPassword: newPw });
+      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      setPwOk("Password updated. Any other devices have been signed out.");
+      setTimeout(() => setPwOk(""), 4000);
+    } catch (err) {
+      setPwError(err.message || "Couldn't update password. Try again.");
+    } finally { setPwBusy(false); }
+  };
+
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 overflow-y-auto"
+      style={{ background: "var(--bg-1, #f5f1e8)" }}>
+      <header className="sticky top-0 z-10 backdrop-blur border-b border-line"
+        style={{ background: "var(--bg-1, #f5f1e8)" }}>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3">
+          <BrandedHeaderRow
+            title="Account Settings"
+            onClick={onClose}
+            right={
+              <button onClick={onClose}
+                className="text-[12px] font-semibold rounded-md border border-line bg-white px-3 py-1.5 text-muted hover:text-text">
+                Done
+              </button>
+            }
+          />
+        </div>
+      </header>
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 fade-in space-y-5">
+        <div className="text-[12px] text-muted leading-relaxed">
+          These settings apply across every league you're in. League-specific stuff (display name, team name, avatar) lives in <span className="font-semibold text-text">League Settings</span> inside each league.
+        </div>
+
+        {/* Identity */}
+        <ProfileSection title="Identity" hint="Used for billing, the Club Championship, and your Clubhouse name.">
+          <div className="grid grid-cols-2 gap-3">
+            <ProfileField label="First name" value={firstName} onChange={setFirstName} placeholder="Austin" />
+            <ProfileField label="Last name"  value={lastName}  onChange={setLastName}  placeholder="Keim" />
+          </div>
+          <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2.5">
+            <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-1">Club Championship name</div>
+            <div className="flex items-baseline gap-2">
+              <span className="font-bold text-base">{ccDisplay}</span>
+              <span className="text-[11px] text-dim">Always First + Last initial</span>
+            </div>
+            <div className="text-[11px] text-dim mt-1 leading-snug">
+              Not changeable — keeps the Club Championship readable across all members.
+            </div>
+          </div>
+        </ProfileSection>
+
+        {/* Email */}
+        <ProfileSection title="Email" hint="Used for sign-in and notifications.">
+          <ProfileField label="Email" value={email} onChange={setEmail} type="email" placeholder="you@example.com" />
+          <div className="flex items-center justify-between gap-3 pt-2">
+            <span className={`text-xs ${toast === "Saved" ? "text-green" : "text-red"}`}>{toast}</span>
+            <button onClick={saveAccount} disabled={busy}
+              className="px-4 py-2 bg-green/10 text-green border border-green/30 rounded-lg text-sm font-semibold hover:bg-green/20 hover:border-green/50 transition-colors disabled:opacity-50">
+              {busy ? "Saving…" : "Save changes"}
+            </button>
+          </div>
+        </ProfileSection>
+
+        {/* Notifications */}
+        <ProfileSection title="Notifications" hint="Email alerts from notify@onlymajors.com.">
+          <NotificationToggles />
+        </ProfileSection>
+
+        {/* Password */}
+        <ProfileSection title="Security" hint="Changing your password signs out every other device you're logged in on.">
+          <form onSubmit={submitPassword} className="space-y-3">
+            <ProfileField label="Current password"     value={currentPw} onChange={setCurrentPw} type="password" placeholder="••••••••" />
+            <ProfileField label="New password"         value={newPw}     onChange={setNewPw}     type="password" placeholder="At least 8 characters" />
+            <ProfileField label="Confirm new password" value={confirmPw} onChange={setConfirmPw} type="password" placeholder="Re-enter the new password" />
+            <div className="flex items-center justify-between gap-3 pt-2">
+              <span className="text-xs">
+                {pwError && <span className="text-red">{pwError}</span>}
+                {pwOk && <span className="text-green">{pwOk}</span>}
+              </span>
+              <button type="submit" disabled={pwBusy}
+                className="px-4 py-2 bg-green/10 text-green border border-green/30 rounded-lg text-sm font-semibold hover:bg-green/20 transition-colors disabled:opacity-50">
+                {pwBusy ? "Updating…" : "Change password"}
+              </button>
+            </div>
+          </form>
+        </ProfileSection>
+      </main>
+    </div>,
+    document.body
+  );
+}
+
+function ProfileTab({ user, onSave, onBack, onOpenAccountSettings }) {
   const [firstName, setFirstName] = useState(user.firstName || "");
   const [lastName,  setLastName]  = useState(user.lastName  || "");
   const [displayName, setDisplayName] = useState(user.owner);
@@ -7209,16 +7411,14 @@ function ProfileTab({ user, onSave, onBack }) {
   };
 
   const saveAccount = () => {
-    if (!firstName.trim())   { setAccountToast("First name can't be empty"); return; }
     if (!displayName.trim()) { setAccountToast("Display name can't be empty"); return; }
     if (!teamName.trim())    { setAccountToast("Team name can't be empty"); return; }
-    if (!/^\S+@\S+\.\S+$/.test(email)) { setAccountToast("That email doesn't look right"); return; }
+    // League Settings only touches league-scoped fields. Account-wide
+    // changes (first/last/email/password/notifications) go through the
+    // Account Settings overlay.
     onSave({
       owner: displayName.trim(),
       name:  teamName.trim(),
-      email: email.trim(),
-      firstName: firstName.trim(),
-      lastName:  lastName.trim(),
       displayNameCustom,
       avatarDataUrl,
     });
@@ -7250,17 +7450,30 @@ function ProfileTab({ user, onSave, onBack }) {
   return (
     <div className="max-w-2xl mx-auto space-y-5">
       {/* Header */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <button onClick={onBack}
           className="text-sm text-muted hover:text-text inline-flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-black/[0.03]">
           <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4L6 8l4 4"/></svg>
           Back
         </button>
-        <h1 className="font-bold text-2xl tracking-tight">Profile Settings</h1>
+        <h1 className="font-bold text-2xl tracking-tight">League Settings</h1>
+        <div className="flex-1"/>
+        {onOpenAccountSettings && (
+          <button onClick={onOpenAccountSettings}
+            className="om-explore-pill inline-flex items-center gap-1.5 text-[12px] font-semibold rounded-md border border-line bg-white px-3 py-1.5 text-muted">
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="8" cy="5" r="2.5"/><path d="M3 14a5 5 0 0 1 10 0"/>
+            </svg>
+            Account Settings
+          </button>
+        )}
+      </div>
+      <div className="text-[12px] text-muted leading-relaxed -mt-2">
+        These settings only affect <span className="font-semibold text-text">this league</span>. For email, password, notifications, and your name across all leagues, open Account Settings.
       </div>
 
       {/* Profile picture */}
-      <ProfileSection title="Profile picture" hint="Replaces the team monogram everywhere in the app.">
+      <ProfileSection title="Profile picture" hint="Replaces the team monogram everywhere in this league. Each league can have its own picture.">
         <div className="flex items-center gap-5">
           <TeamBadge team={previewTeam} size="xl" />
           <div className="flex flex-col gap-2">
@@ -7280,23 +7493,16 @@ function ProfileTab({ user, onSave, onBack }) {
         </div>
       </ProfileSection>
 
-      {/* Account */}
-      <ProfileSection title="Account">
-        <div className="grid grid-cols-2 gap-3">
-          <ProfileField label="First name" value={firstName} onChange={setFirstName} placeholder="Austin"
-            sub="Shown on your Clubhouse." />
-          <ProfileField label="Last name"  value={lastName}  onChange={setLastName}  placeholder="Keim"
-            sub="Stays private; visible only to you." />
-        </div>
+      {/* League-specific identity (this team only) */}
+      <ProfileSection title="This League" hint="How your team shows up here. Other leagues stay separate.">
         <ProfileField label="Display name" value={displayName}
           onChange={(v) => { setDisplayName(v); setDisplayNameCustom(true); }}
           placeholder={autoDisplay || "e.g. Austin K."}
           sub={displayNameCustom
-            ? "Your handle — what shows in leagues, chat, leaderboards."
-            : (autoDisplay ? `Auto-filled as ${autoDisplay} — change it any time.`
-                           : "Auto-fills from your name once you fill First + Last.")} />
+            ? "Your handle in this league — shows in chat, leaderboards, score cards."
+            : (autoDisplay ? `Defaults to ${autoDisplay} — customize per league.`
+                           : "Defaults from your account name once set.")} />
         <ProfileField label="Team name"   value={teamName}   onChange={setTeamName}   placeholder="e.g. Team Austin" sub="The team brand shown in standings and chat headers." />
-        <ProfileField label="Email"       value={email}      onChange={setEmail}      type="email" placeholder="you@example.com" sub="Used for magic-link sign-in and notifications." />
         <div className="flex items-center justify-between gap-3 pt-2">
           <span className={`text-xs ${accountToast === "Saved" ? "text-green" : "text-red"}`}>{accountToast}</span>
           <button onClick={saveAccount}
@@ -7304,30 +7510,6 @@ function ProfileTab({ user, onSave, onBack }) {
             Save changes
           </button>
         </div>
-      </ProfileSection>
-
-      {/* Notifications */}
-      <ProfileSection title="Notifications" hint="Email alerts from notify@onlymajors.com. Toggle anything you don't want.">
-        <NotificationToggles />
-      </ProfileSection>
-
-      {/* Password */}
-      <ProfileSection title="Security" hint="Changing your password signs out every other device you're logged in on.">
-        <form onSubmit={submitPassword} className="space-y-3">
-          <ProfileField label="Current password"  value={currentPw} onChange={setCurrentPw} type="password" placeholder="••••••••" />
-          <ProfileField label="New password"      value={newPw}     onChange={setNewPw}     type="password" placeholder="At least 8 characters" />
-          <ProfileField label="Confirm new password" value={confirmPw} onChange={setConfirmPw} type="password" placeholder="Re-enter the new password" />
-          <div className="flex items-center justify-between gap-3 pt-2">
-            <span className="text-xs">
-              {pwError && <span className="text-red">{pwError}</span>}
-              {pwOk && <span className="text-green">{pwOk}</span>}
-            </span>
-            <button type="submit" disabled={pwBusy}
-              className="px-4 py-2 bg-green/10 text-green border border-green/30 rounded-lg text-sm font-semibold hover:bg-green/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-              {pwBusy ? "Updating…" : "Change password"}
-            </button>
-          </div>
-        </form>
       </ProfileSection>
     </div>
   );
