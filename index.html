@@ -1023,9 +1023,13 @@ async function apiSignup({ email, password, displayName, teamId, leagueCode }) {
   return data;   // { token, user, leagues }
 }
 async function apiLogin({ email, password }) {
+  // `email` is the legacy param name; the input now accepts an email OR a
+  // membership number (with or without leading #). Send as `identifier` so the
+  // backend can dispatch on shape. Old backends still read `email`, so we
+  // include both for max compatibility.
   const res = await fetch(`${ONLYMAJORS_API}/api/auth/login`, {
     method: "POST", headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ identifier: email, email, password }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `login HTTP ${res.status}`);
@@ -2096,7 +2100,7 @@ function LoginScreen({ onAuthed }) {
 
           {mode === "login" && (
             <form onSubmit={handleLogin} className="space-y-3">
-              <AuthField label="Email"    type="email"    value={email}    onChange={setEmail}    placeholder="you@example.com" />
+              <AuthField label="Email or Membership Number" type="text" value={email} onChange={setEmail} placeholder="you@example.com or #1" />
               <AuthField label="Password" type="password" value={password} onChange={setPassword} placeholder="••••••••" />
               {error && <div className="text-[12px] text-red">{error}</div>}
               <button type="submit" disabled={loading}
