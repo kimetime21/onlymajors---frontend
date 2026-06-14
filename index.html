@@ -1054,10 +1054,10 @@ async function authFetch(url, opts = {}) {
   return res;
 }
 
-async function apiSignup({ email, password, displayName, teamId, leagueCode }) {
+async function apiSignup({ email, password, displayName, firstName, lastName, teamId, leagueCode }) {
   const res = await fetch(`${ONLYMAJORS_API}/api/auth/signup`, {
     method: "POST", headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ email, password, displayName, teamId, leagueCode }),
+    body: JSON.stringify({ email, password, displayName, firstName, lastName, teamId, leagueCode }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `signup HTTP ${res.status}`);
@@ -1756,9 +1756,11 @@ function App() {
     } catch {}
     // Push the same fields to the server, fire-and-forget.
     saveProfileAPI(user.id, {
-      displayName: updates.displayName ?? null,
+      displayName: updates.owner       ?? updates.displayName ?? null,
       teamName:    updates.name        ?? null,
       email:       updates.email       ?? null,
+      firstName:   updates.firstName   ?? null,
+      lastName:    updates.lastName    ?? null,
     }).catch(e => console.warn("profile save failed:", e.message));
     setProfileVersion(v => v + 1);
   };
@@ -1864,8 +1866,19 @@ function App() {
   if (!activeLeagueId) return (
     <>
       <LeagueHub authedUser={authedUser} leagues={leagues} picks={safePicks} syncToken={syncToken}
-        onEnterLeague={(id) => { setActiveLeagueId(id); setTab("picks"); }}
-        onOpenProfile={(id) => { setActiveLeagueId(id || leagues[0]?.id); setTab("profile"); }}
+        onEnterLeague={(id) => {
+          setActiveLeagueId(id);
+          setTab("picks");
+          // Reset scroll so members land at the top of the league page —
+          // otherwise they keep the scroll Y they had on the Clubhouse and
+          // can't see the TabBar to switch off Picks.
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }}
+        onOpenProfile={(id) => {
+          setActiveLeagueId(id || leagues[0]?.id);
+          setTab("profile");
+          window.scrollTo({ top: 0, behavior: "instant" });
+        }}
         onLeaguesChanged={(nextLeagues, nextActiveId) => {
           setLeagues(nextLeagues);
           if (nextActiveId) setActiveLeagueId(nextActiveId);
@@ -2084,6 +2097,8 @@ function LoginScreen({ onAuthed }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName]   = useState("");
   const [teamId, setTeamId] = useState("");
   const [leagueCode, setLeagueCode] = useState("");
   const [leagueName, setLeagueName] = useState("");    // for "join existing" preview
@@ -2139,12 +2154,18 @@ function LoginScreen({ onAuthed }) {
   };
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (!displayName.trim()) { setError("Pick a display name."); return; }
+    if (!firstName.trim()) { setError("First name is required."); return; }
+    if (!lastName.trim())  { setError("Last name is required.");  return; }
     setLoading(true); setError("");
     try {
-      // Account-only signup — no league joined here. Members land in the
-      // Clubhouse and can Join or Start a league from there.
-      const r = await apiSignup({ email, password, displayName });
+      // Account-only signup — backend derives displayName ("First L.") if we
+      // don't send one. Members land in the Clubhouse and can Join or Start
+      // a league from there.
+      const r = await apiSignup({
+        email, password,
+        firstName: firstName.trim(),
+        lastName:  lastName.trim(),
+      });
       setToken(r.token);
       onAuthed(r);
     } catch (err) {
@@ -2220,7 +2241,15 @@ function LoginScreen({ onAuthed }) {
               <div className="text-[13px] text-muted leading-snug">
                 Welcome to OnlyMajors. Create your membership — you'll be able to join a friend's league or start your own from the Clubhouse.
               </div>
-              <AuthField label="Display name" type="text"     value={displayName} onChange={setDisplayName} placeholder="What your friends call you" />
+              <div className="grid grid-cols-2 gap-3">
+                <AuthField label="First name" type="text" value={firstName} onChange={setFirstName} placeholder="Austin" />
+                <AuthField label="Last name"  type="text" value={lastName}  onChange={setLastName}  placeholder="Keim" />
+              </div>
+              <div className="text-[11px] text-dim leading-snug -mt-1">
+                {firstName.trim() && lastName.trim()
+                  ? <>Your handle will be <span className="text-text font-semibold">{firstName.trim()} {lastName.trim()[0].toUpperCase()}.</span> — you can change it later in Profile.</>
+                  : "Your display handle defaults to First L. (you can change it later)."}
+              </div>
               <AuthField label="Email"        type="email"    value={email}       onChange={setEmail}       placeholder="you@example.com" />
               <AuthField label="Password"     type="password" value={password}    onChange={setPassword}    placeholder="At least 6 characters" />
               {error && <div className="text-[12px] text-red">{error}</div>}
@@ -2719,7 +2748,7 @@ const PROSHOP_PRODUCTS = [
   {
     id:       "perfhat",
     name:     "Imperial Performance Hat",
-    tagline:  "OSFA · adjustable",
+    tagline:  "OSFA · adjustable · mid-crown",
     blurb:    "Lightweight Imperial performance crown with structured front panel and curved brim. Embroidered crest.",
     sizing:   "OSFA · Adjustable",
     variants: [
@@ -2732,7 +2761,7 @@ const PROSHOP_PRODUCTS = [
   {
     id:       "rope",
     name:     "Imperial Performance Rope Hat",
-    tagline:  "OSFA · rope crown",
+    tagline:  "OSFA · adjustable · rope · mid-crown",
     blurb:    "Same Imperial performance shell with a structured rope front. Curved brim, adjustable back.",
     sizing:   "OSFA · Adjustable",
     variants: [
@@ -2744,7 +2773,7 @@ const PROSHOP_PRODUCTS = [
   {
     id:       "hoodie",
     name:     "Imperial Hoodie",
-    tagline:  "Heather Cream",
+    tagline:  "Heather Cream · embroidered sleeve",
     blurb:    "Mid-weight French terry hoodie in Heather Cream with an embroidered sleeve mark.",
     sizing:   "S · M · L · XL · XXL",
     variants: [
@@ -3067,9 +3096,18 @@ function HubUserMenu({ authedUser, firstName, onOpenProfile, onOpenOnboarding, o
 // and ascending membership number on the right. The number persists across
 // sessions and identifies the user for future merch / payments. Founder is #1.
 function MembershipCard({ authedUser, summary, onOpenProfile }) {
-  const displayName = authedUser.displayName || authedUser.email?.split("@")[0] || "Member";
-  const initials = (authedUser.displayName || authedUser.email || "?")
-    .split(/[\s@]/).filter(Boolean).map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
+  // Prefer "First Last" if we have them; fall back to the display name or
+  // email-local. The full name is the right thing to show in the Clubhouse,
+  // since this card is the country-club membership identity.
+  const fullName = (authedUser.firstName && authedUser.lastName)
+    ? `${authedUser.firstName} ${authedUser.lastName}`
+    : (authedUser.firstName || authedUser.displayName || authedUser.email?.split("@")[0] || "Member");
+  // Initials come from the full name so they're stable even after a display
+  // name customization.
+  const seed = (authedUser.firstName || authedUser.displayName || authedUser.email || "?")
+    + " " + (authedUser.lastName || "");
+  const initials = seed.split(/[\s@]/).filter(Boolean)
+    .map(s => s[0]?.toUpperCase()).slice(0, 2).join("");
   const memberNumber =
     summary?.me?.memberNumber ??
     authedUser?.memberNumber ??
@@ -3086,7 +3124,7 @@ function MembershipCard({ authedUser, summary, onOpenProfile }) {
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-[11px] uppercase tracking-[0.18em] font-semibold text-dim">Member name</span>
           </div>
-          <div className="font-bold text-xl tracking-tight truncate">{displayName}</div>
+          <div className="font-bold text-xl tracking-tight truncate">{fullName}</div>
           <div className="mt-2 flex items-baseline gap-2 flex-wrap">
             <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim">Membership number</span>
             <span className="font-mono font-semibold text-[13px]" style={{ color: "var(--green)" }}>
@@ -3607,9 +3645,24 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
     "Scottie Scheffler", "Rory McIlroy", "Jon Rahm",
     "Xander Schauffele", "Ludvig Åberg", "Justin Thomas",
   ];
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md flex items-end sm:items-center justify-center px-4 py-6"
+  // Body-scroll lock so the page underneath doesn't move while the modal is open.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  // Rendered via createPortal so the fixed-positioned overlay anchors to the
+  // viewport, not the Clubhouse main (which has a fade-in transform that
+  // would otherwise create a containing block).
+  //
+  // Overlay scrolls vertically; the inner panel is vertically centered via
+  // m-auto inside the flex column. This means the modal opens at the same
+  // visual position on every viewport size — no items-end on mobile vs
+  // items-center on desktop drift.
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md overflow-y-auto"
       onClick={onClose}>
+      <div className="min-h-full flex items-center justify-center px-4 py-6">
       <div onClick={(e) => e.stopPropagation()}
         style={{ background: "#ffffff" }}
         className="border border-line rounded-2xl w-full max-w-xl shadow-2xl flex flex-col max-h-[92vh]">
@@ -3683,7 +3736,9 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
           <div className="text-[11px] text-dim text-center">Preview only · the real entry flow opens with the next Picks Open email.</div>
         </div>
       </div>
-    </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -4909,8 +4964,10 @@ function TabBar({ tab, setTab, leftSlot }) {
   return (
     <nav className="border-b border-line bg-bg2/40 backdrop-blur-xl sticky top-[57px] sm:top-[65px] z-20">
       <div className="max-w-6xl mx-auto px-2 sm:px-6 flex items-center gap-3">
-        {/* Far-left slot — currently used for the back-to-Clubhouse pill */}
-        {leftSlot && <div className="shrink-0 py-2">{leftSlot}</div>}
+        {/* Far-left slot — currently used for the back-to-Clubhouse pill.
+            Hidden on mobile (<sm) because it crowds the tab labels; mobile
+            users navigate back to the Clubhouse from the user-menu dropdown. */}
+        {leftSlot && <div className="shrink-0 py-2 hidden sm:flex items-center">{leftSlot}</div>}
         <div className="flex-1 flex overflow-x-auto scrollbar-hide justify-center">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
@@ -7038,9 +7095,21 @@ function LocksWidget({ picks, viewAs, leagueId }) {
    PROFILE SETTINGS
    ========================================================================= */
 function ProfileTab({ user, onSave, onBack }) {
+  const [firstName, setFirstName] = useState(user.firstName || "");
+  const [lastName,  setLastName]  = useState(user.lastName  || "");
   const [displayName, setDisplayName] = useState(user.owner);
   const [teamName, setTeamName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
+  // Auto-suggest a default display name from first + last whenever those
+  // change, unless the user has manually edited the display name.
+  const initialCustom = user?.displayNameCustom ?? false;
+  const [displayNameCustom, setDisplayNameCustom] = useState(initialCustom);
+  const autoDisplay = (firstName.trim() && lastName.trim())
+    ? `${firstName.trim()} ${lastName.trim()[0].toUpperCase()}.`
+    : firstName.trim() || "";
+  React.useEffect(() => {
+    if (!displayNameCustom && autoDisplay) setDisplayName(autoDisplay);
+  }, [autoDisplay, displayNameCustom]);
   const [avatarDataUrl, setAvatarDataUrl] = useState(user.avatarDataUrl || null);
   const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
@@ -7065,10 +7134,19 @@ function ProfileTab({ user, onSave, onBack }) {
   };
 
   const saveAccount = () => {
+    if (!firstName.trim())   { setAccountToast("First name can't be empty"); return; }
     if (!displayName.trim()) { setAccountToast("Display name can't be empty"); return; }
     if (!teamName.trim())    { setAccountToast("Team name can't be empty"); return; }
     if (!/^\S+@\S+\.\S+$/.test(email)) { setAccountToast("That email doesn't look right"); return; }
-    onSave({ owner: displayName.trim(), name: teamName.trim(), email: email.trim(), avatarDataUrl });
+    onSave({
+      owner: displayName.trim(),
+      name:  teamName.trim(),
+      email: email.trim(),
+      firstName: firstName.trim(),
+      lastName:  lastName.trim(),
+      displayNameCustom,
+      avatarDataUrl,
+    });
     setAccountToast("Saved");
     setTimeout(() => setAccountToast(""), 2500);
   };
@@ -7129,7 +7207,19 @@ function ProfileTab({ user, onSave, onBack }) {
 
       {/* Account */}
       <ProfileSection title="Account">
-        <ProfileField label="Display name" value={displayName} onChange={setDisplayName} placeholder="e.g. Austin" sub="Shown next to your messages and on the leaderboard." />
+        <div className="grid grid-cols-2 gap-3">
+          <ProfileField label="First name" value={firstName} onChange={setFirstName} placeholder="Austin"
+            sub="Shown on your Clubhouse." />
+          <ProfileField label="Last name"  value={lastName}  onChange={setLastName}  placeholder="Keim"
+            sub="Stays private; visible only to you." />
+        </div>
+        <ProfileField label="Display name" value={displayName}
+          onChange={(v) => { setDisplayName(v); setDisplayNameCustom(true); }}
+          placeholder={autoDisplay || "e.g. Austin K."}
+          sub={displayNameCustom
+            ? "Your handle — what shows in leagues, chat, leaderboards."
+            : (autoDisplay ? `Auto-filled as ${autoDisplay} — change it any time.`
+                           : "Auto-fills from your name once you fill First + Last.")} />
         <ProfileField label="Team name"   value={teamName}   onChange={setTeamName}   placeholder="e.g. Team Austin" sub="The team brand shown in standings and chat headers." />
         <ProfileField label="Email"       value={email}      onChange={setEmail}      type="email" placeholder="you@example.com" sub="Used for magic-link sign-in and notifications." />
         <div className="flex items-center justify-between gap-3 pt-2">
