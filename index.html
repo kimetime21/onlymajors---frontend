@@ -1895,7 +1895,7 @@ function App() {
         }}
         onSignOut={signOut}
         onOpenOnboarding={() => setOnboardingMode("manual")} />
-      {onboardingMode && <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} />}
+      {onboardingMode && <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} authedUser={authedUser} summary={appSummary} />}
       {accountSettingsOpen && (
         <AccountSettingsOverlay authedUser={authedUser} summary={appSummary}
           onClose={() => setAccountSettingsOpen(false)}
@@ -1953,7 +1953,8 @@ function App() {
       <SyncToast status={syncStatus} message={syncMessage} />
 
       {onboardingMode && (
-        <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding} />
+        <OnboardingModal dismissible={onboardingMode === "manual"} onClose={closeOnboarding}
+          authedUser={authedUser} summary={appSummary} />
       )}
 
       {accountSettingsOpen && (
@@ -5052,6 +5053,10 @@ function TabBar({ tab, setTab, leftSlot }) {
    the modal renders the screenshot in the image area; otherwise it shows a
    labeled placeholder so it's clear which screen the slide refers to.
    ========================================================================= */
+// First slide is rendered specially in OnboardingModal as a personalized
+// "Welcome to the Club" card using the user's name + member number. This
+// entry is the fallback shown only when authedUser isn't available (e.g.,
+// manual reopen edge cases).
 const ONBOARDING_SLIDES = [
   {
     title: "Welcome to OnlyMajors",
@@ -5091,11 +5096,23 @@ const ONBOARDING_SLIDES = [
   },
 ];
 
-function OnboardingModal({ dismissible, onClose }) {
+function OnboardingModal({ dismissible, onClose, authedUser, summary }) {
   const [idx, setIdx] = useState(0);
   const isLast = idx === ONBOARDING_SLIDES.length - 1;
   const slide  = ONBOARDING_SLIDES[idx];
   const touchStartX = React.useRef(null);
+
+  // Personalize slide 0 as "Welcome to the Club" with the new member's name +
+  // membership number. Falls back to the generic welcome copy only if user
+  // data isn't available (shouldn't happen in normal signup flow).
+  const firstName = summary?.me?.firstName ?? authedUser?.firstName ?? null;
+  const lastName  = summary?.me?.lastName  ?? authedUser?.lastName  ?? null;
+  const memberNumber =
+    summary?.me?.memberNumber ?? authedUser?.memberNumber ?? null;
+  const fullName = (firstName && lastName)
+    ? `${firstName} ${lastName}`
+    : (firstName || authedUser?.displayName || authedUser?.email?.split("@")[0] || null);
+  const isWelcomeSlide = idx === 0 && !!fullName;
 
   const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const onTouchEnd   = (e) => {
@@ -5130,7 +5147,8 @@ function OnboardingModal({ dismissible, onClose }) {
           </button>
         )}
 
-        {/* Image area — screenshot or placeholder */}
+        {/* Image area — screenshot or placeholder. Slide 0 keeps the logo /
+            hero image; the personalization is in the text below. */}
         <div className="aspect-[5/3] bg-bg2 border-b border-line flex items-center justify-center text-dim text-xs overflow-hidden">
           {slide.image
             ? <img src={slide.image} alt={slide.title} className="w-full h-full object-cover" />
@@ -5150,8 +5168,32 @@ function OnboardingModal({ dismissible, onClose }) {
           <div className="text-[11px] uppercase tracking-[0.2em] text-dim mb-2">
             How OnlyMajors works · {idx + 1}/{ONBOARDING_SLIDES.length}
           </div>
-          <h2 className="font-bold text-2xl tracking-tight mb-2.5">{slide.title}</h2>
-          <p className="text-muted leading-relaxed text-sm">{slide.body}</p>
+          {isWelcomeSlide ? (
+            <>
+              <h2 className="font-bold text-2xl tracking-tight mb-1">Welcome to the Club</h2>
+              <div className="font-semibold text-lg tracking-tight" style={{ color: "var(--green)" }}>
+                {fullName}
+              </div>
+              {memberNumber != null && (
+                <div className="mt-0.5 mb-3 flex items-baseline gap-2">
+                  <span className="text-[10px] uppercase tracking-[0.2em] font-semibold text-dim">Membership number</span>
+                  <span className="font-mono font-bold text-sm tabular-nums" style={{ color: "var(--green)" }}>
+                    #{memberNumber}
+                  </span>
+                </div>
+              )}
+              <p className="text-muted leading-relaxed text-sm mt-2">
+                We're stoked to have you in the clubhouse. OnlyMajors is a small, tight community built around the four tournaments that actually matter — and you've got a permanent seat at the table.
+                <br /><br />
+                The next few slides will walk you through how it all works.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="font-bold text-2xl tracking-tight mb-2.5">{slide.title}</h2>
+              <p className="text-muted leading-relaxed text-sm">{slide.body}</p>
+            </>
+          )}
 
           {/* Dots */}
           <div className="flex items-center justify-center gap-2 mt-6 mb-4">
