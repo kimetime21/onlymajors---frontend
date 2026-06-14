@@ -2070,11 +2070,11 @@ function LoginScreen({ onAuthed }) {
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-md">
-        {/* Logo + brand — bigger logo, just the wordmark below; slogan
-            lives in the footer beneath the card now. */}
+        {/* Logo + brand — bigger logo, wordmark in the logo's green so the
+            two read as one mark; slogan lives in the footer beneath the card. */}
         <div className="flex flex-col items-center mb-6">
           <OnlyMajorsLogo size={162} full={true} className="mb-3" />
-          <div className="font-bold tracking-tight text-3xl">OnlyMajors</div>
+          <div className="font-bold tracking-tight text-3xl" style={{ color: "var(--green)" }}>OnlyMajors</div>
         </div>
 
         <div className="glass rounded-2xl p-6 space-y-4 fade-in">
