@@ -3391,6 +3391,9 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   const [hofOpen,     setHofOpen]     = useState(false);
   const [avgOpen,     setAvgOpen]     = useState(false);
   const [livePageOpen, setLivePageOpen] = useState(false);
+  // Real picks gate — same logic as the league picks tab.
+  const picksOpen = arePicksOpen(focusMajor);
+  const isLockedForTourney = focusMajor.status === "live" || focusMajor.status === "complete";
   // Dropdowns stay user-controlled — never auto-open with preview toggle.
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
@@ -3405,43 +3408,40 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
             <div className="min-w-0">
               <div className="font-bold text-lg leading-tight">{focusMajor.short} · Club Championship</div>
               <div className="text-[12px] text-dim mt-0.5">
-                {livePreview
-                  ? <>Entries open · <span className="text-text font-semibold">2,341 members</span> enrolled · locks at first tee</>
-                  : (liveMajor ? "Live now — entries closed at first tee." : `Picks open ${focusMajor.picksOpenLabel} · locks at first tee`)}
+                {isLockedForTourney
+                  ? "Roster locked — tournament underway."
+                  : picksOpen
+                    ? <>Picks open · locks at first tee · <span className="text-text font-semibold">{focusMajor.teeTimeLabel}</span></>
+                    : `Picks open ${focusMajor.picksOpenLabel} · locks at first tee`}
               </div>
             </div>
           </div>
-          <button onClick={() => setLivePreview(v => !v)}
-            className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded shrink-0 transition-colors"
-            style={livePreview
-              ? { background: "var(--green)", color: "var(--bg-1)" }
-              : { background: "rgba(43,69,53,0.08)", color: "var(--green)" }}>
-            {livePreview ? "Live preview" : "Preview"}
-          </button>
         </div>
         <div className="text-sm text-muted leading-relaxed">
           Six starters, every member of OnlyMajors, one tournament. Separate from your league picks. The winner of each Club Championship is enshrined in the Hall of Fame.
         </div>
         <button
           type="button"
-          disabled={!livePreview}
-          onClick={() => livePreview && setEntryOpen(true)}
+          disabled={!picksOpen && !isLockedForTourney}
+          onClick={() => setEntryOpen(true)}
           className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
-          Enter the Club Championship
+          {isLockedForTourney ? "View my locked roster" : picksOpen ? "Enter the Club Championship" : `Opens ${focusMajor.picksOpenLabel}`}
         </button>
-        {livePreview && (
+        {isLockedForTourney && (
           <button type="button" onClick={() => setLivePageOpen(true)}
             className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors flex items-center justify-center gap-1.5">
-            See what the live tournament page looks like
+            See the live tournament page
             <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M6 4l4 4-4 4"/>
             </svg>
           </button>
         )}
         <div className="text-[11px] text-dim text-center">
-          {livePreview
-            ? "Sample data — what this section will look like once enrollment opens."
-            : "Open enrollment goes live with the next Picks Open email."}
+          {isLockedForTourney
+            ? "Live scoring updates with every round."
+            : picksOpen
+              ? "Every OnlyMajors member is automatically eligible."
+              : `Field set on ${focusMajor.fieldSetLabel || "Monday of tournament week"}.`}
         </div>
       </div>
 
@@ -3761,26 +3761,87 @@ function HallOfFameList({ livePreview = false }) {
   );
 }
 
-// Club Championship entry preview — opens when the live-preview CTA is clicked.
-// Shows what the roster-builder will look like once enrollment is live, so
-// members can visualize the picks experience before the real flow ships.
+// Club Championship entry modal. Real save/load against the backend's
+// /api/club-championship/picks/:majorId endpoint. Six starter slots, score
+// prediction (tiebreaker), locks at first tee. Picks here are SEPARATE
+// from any league picks the user has made — CC has its own scoreboard.
 function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUser, onClose }) {
-  // Pre-populate the 4 starters + 2 bench with realistic favorites so the
-  // roster feels alive. Members can tap "Change" to swap any slot — opens
-  // a small mock picker that just dismisses (preview only).
   const youName = authedUser?.displayName?.split(/[\s@]/)[0] || "You";
-  // Hardcode preview names so we don't depend on the GOLFERS lookup table.
-  // Club Championship: 6 starters, no bench (one all-in roster).
-  const initialStarters = [
-    "Scottie Scheffler", "Rory McIlroy", "Jon Rahm",
-    "Xander Schauffele", "Ludvig Åberg", "Justin Thomas",
-  ];
+  const STARTER_COUNT = 6;
+  const [starters,        setStarters]        = useState(Array(STARTER_COUNT).fill(null));
+  const [scorePrediction, setScorePrediction] = useState(0);
+  const [loading,         setLoading]         = useState(true);
+  const [busy,            setBusy]            = useState(false);
+  const [savedAt,         setSavedAt]         = useState(null);
+  const [error,           setError]           = useState("");
+  const [pickerSlot,      setPickerSlot]      = useState(null); // index of slot being edited
+  const [dynamicField,    setDynamicField]    = useState(null);
+  const locked = focusMajor.status === "live" || focusMajor.status === "complete";
+
   // Body-scroll lock so the page underneath doesn't move while the modal is open.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
+
+  // Load any previously-saved picks for this major.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await apiGetClubChampPicks(focusMajor.id);
+        if (cancelled) return;
+        const filled = Array(STARTER_COUNT).fill(null);
+        (saved?.starters || []).slice(0, STARTER_COUNT).forEach((gid, i) => { filled[i] = gid || null; });
+        setStarters(filled);
+        setScorePrediction(saved?.scorePrediction ?? 0);
+        setSavedAt(saved?.submittedAt || null);
+      } catch (e) {
+        if (!cancelled) console.warn("CC picks load failed:", e.message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [focusMajor.id]);
+
+  // Field for the player picker — same /api/field endpoint the league
+  // picker uses, so we get DataGolf favorites + win odds for free.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${ONLYMAJORS_API}/api/field/${focusMajor.id}`, { cache: "no-store" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (!cancelled && d) setDynamicField(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [focusMajor.id]);
+
+  const lookupName = (gid) => {
+    if (!gid) return "";
+    const g = G[gid];
+    if (g?.name) return g.name;
+    const dyn = dynamicField?.players?.find(p => p.gid === gid);
+    return dyn?.name || gid;
+  };
+
+  const lockIn = async () => {
+    setError("");
+    const filled = starters.filter(Boolean);
+    if (filled.length < STARTER_COUNT) {
+      setError(`Pick all ${STARTER_COUNT} starters before locking in.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await apiSaveClubChampPicks(focusMajor.id, { starters, scorePrediction });
+      setSavedAt(r?.submittedAt || new Date().toISOString());
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
   // Rendered via createPortal so the fixed-positioned overlay anchors to the
   // viewport, not the Clubhouse main (which has a fade-in transform that
   // would otherwise create a containing block).
@@ -3813,8 +3874,16 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
             </button>
           </div>
           <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <span className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded"
-              style={{ background: "var(--green)", color: "var(--bg-1)" }}>Live preview</span>
+            {locked ? (
+              <span className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded"
+                style={{ background: "rgba(43,69,53,0.08)", color: "var(--green)" }}>Locked</span>
+            ) : savedAt ? (
+              <span className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded"
+                style={{ background: "var(--green)", color: "var(--bg-1)" }}>Saved</span>
+            ) : (
+              <span className="text-[10px] uppercase tracking-[0.18em] font-semibold px-1.5 py-0.5 rounded"
+                style={{ background: "rgba(43,69,53,0.08)", color: "var(--green)" }}>Picks open</span>
+            )}
             <span className="text-[12px] text-dim">Locks at first tee · {focusMajor.teeTimeLabel}</span>
           </div>
         </div>
@@ -3840,58 +3909,115 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
                   First tiebreaker on earnings. Final tiebreaker: whoever submitted earliest.
                 </div>
               </div>
-              <MiniScoreReel />
+              <MiniScoreReel value={scorePrediction} onChange={setScorePrediction} locked={locked} />
             </div>
           </section>
 
           <section>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-sm">Starters</h3>
-              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">6 golfers · all count</span>
+              <span className="text-[11px] uppercase tracking-wider text-dim font-semibold">
+                {starters.filter(Boolean).length}/{STARTER_COUNT} picked
+              </span>
             </div>
-            <div className="space-y-2">
-              {initialStarters.map((name, i) => (
-                <ClubChampPickRow key={i} slot={i+1} role="starter" name={name} />
-              ))}
-            </div>
+            {loading ? (
+              <div className="text-[12px] text-dim text-center py-6">Loading your roster…</div>
+            ) : (
+              <div className="space-y-2">
+                {starters.map((gid, i) => (
+                  <ClubChampPickRow key={i} slot={i+1} name={lookupName(gid)}
+                    disabled={locked}
+                    onChange={() => setPickerSlot(i)} />
+                ))}
+              </div>
+            )}
           </section>
+
+          {error && <div className="text-[12px] text-red px-1">{error}</div>}
         </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-line space-y-2">
-          <button type="button" disabled
-            className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
-            Lock in picks
-          </button>
-          <div className="text-[11px] text-dim text-center">Preview only · the real entry flow opens with the next Picks Open email.</div>
+          {locked ? (
+            <button type="button" disabled
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+              Locked at first tee
+            </button>
+          ) : (
+            <button type="button" onClick={lockIn} disabled={busy || loading}
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+              {busy ? "Saving…" : savedAt ? "Update picks" : "Lock in picks"}
+            </button>
+          )}
+          <div className="text-[11px] text-dim text-center">
+            {locked
+              ? "Roster locked — tournament is underway."
+              : savedAt
+                ? `Saved · you can update anytime before first tee.`
+                : "You can change your picks anytime before first tee Thursday."}
+          </div>
         </div>
       </div>
       </div>
+
+      {/* Picker — opens when user taps Change/Pick on a slot. Uses the same
+          PickerModal as the league flow, with a synthetic picks tree that has
+          no cross-major locks (CC resets per major). The "In lineup" badge
+          still surfaces players already on the CC roster. */}
+      {pickerSlot != null && (() => {
+        const ccPicks = { cc: {} };
+        for (const m of MAJORS) {
+          ccPicks.cc[m.id] = { starters: [], bench: [], subs: [] };
+        }
+        ccPicks.cc[focusMajor.id] = { starters, bench: [], subs: [] };
+        return (
+          <PickerModal
+            state={{ slotType: "starter", slotIndex: pickerSlot }}
+            teamId="cc"
+            majorId={focusMajor.id}
+            picks={ccPicks}
+            dynamicField={dynamicField}
+            onPick={(gid) => {
+              setStarters(prev => {
+                const next = [...prev];
+                // Don't allow duplicates in CC roster.
+                const dupIdx = next.indexOf(gid);
+                if (dupIdx !== -1 && dupIdx !== pickerSlot) next[dupIdx] = null;
+                next[pickerSlot] = gid;
+                return next;
+              });
+              setPickerSlot(null);
+            }}
+            onClose={() => setPickerSlot(null)} />
+        );
+      })()}
     </div>,
     document.body
   );
 }
 
-// Compact scrollable score reel for the Club Championship entry preview.
-// Mirrors the full ScorePredictor's behavior at a smaller scale. Starts
-// centered on E (0), scroll to land on a value, snaps to nearest on settle.
-function MiniScoreReel() {
+// Compact scrollable score reel for the Club Championship entry modal.
+// Controlled component: value + onChange are owned by the parent so the
+// score prediction can be saved alongside the roster. Starts centered on E.
+function MiniScoreReel({ value, onChange, locked }) {
   const ITEM_H  = 34;
   const PADDING = ITEM_H; // half a slot of pad on either end so the center row fits
   const scrollRef = useRef(null);
-  const [value, setValue] = useState(0);
+  const current = (value ?? 0);
   useEffect(() => {
     // Wait until after layout settles — when the modal animates in, scrollTop
     // can otherwise be clamped to 0 because the container hasn't measured yet.
     const id = requestAnimationFrame(() => {
       if (!scrollRef.current) return;
-      const startIdx = SCORE_OPTIONS.indexOf(0);
+      const startIdx = SCORE_OPTIONS.indexOf(current);
+      if (startIdx === -1) return;
       scrollRef.current.scrollTop = startIdx * ITEM_H;
     });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, []); // eslint-disable-line
   const debounceRef = useRef(null);
   const handleScroll = () => {
+    if (locked) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       const el = scrollRef.current;
@@ -3899,7 +4025,7 @@ function MiniScoreReel() {
       const idx = Math.round(el.scrollTop / ITEM_H);
       const clamped = Math.max(0, Math.min(SCORE_OPTIONS.length - 1, idx));
       el.scrollTo({ top: clamped * ITEM_H, behavior: "smooth" });
-      setValue(SCORE_OPTIONS[clamped]);
+      onChange?.(SCORE_OPTIONS[clamped]);
     }, 90);
   };
   return (
@@ -3913,7 +4039,7 @@ function MiniScoreReel() {
         style={{ scrollSnapType: "y mandatory", paddingTop: PADDING + "px", paddingBottom: PADDING + "px", scrollbarWidth: "none" }}>
         {SCORE_OPTIONS.map((s) => (
           <div key={s} className="h-[34px] flex items-center justify-center text-base font-bold display-num"
-            style={{ scrollSnapAlign: "center", color: s === value ? "var(--green)" : "var(--text)" }}>
+            style={{ scrollSnapAlign: "center", color: s === current ? "var(--green)" : "var(--text)" }}>
             {fmtScoreToPar(s)}
           </div>
         ))}
@@ -3922,17 +4048,22 @@ function MiniScoreReel() {
   );
 }
 
-function ClubChampPickRow({ slot, role, name }) {
+// CC pick row. Renders the player name (looked up by gid or empty) and a
+// Change button that opens the picker for that slot. Disabled state covers
+// the locked post-tee-time UI.
+function ClubChampPickRow({ slot, name, onChange, disabled }) {
   return (
     <div className="rounded-lg border border-line bg-white px-3 py-2.5 flex items-center gap-3">
       <div className="w-6 text-[12px] font-mono text-dim shrink-0">S{slot}</div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold truncate">{name}</div>
+        <div className={`text-sm font-semibold truncate ${name ? "" : "text-dim italic"}`}>
+          {name || "Empty — tap Change"}
+        </div>
         <div className="text-[12px] text-dim">Counts toward your Championship total</div>
       </div>
-      <button type="button" disabled
-        className="text-[11px] font-semibold text-dim px-2 py-1 rounded border border-line disabled:opacity-60 disabled:cursor-not-allowed">
-        Change
+      <button type="button" onClick={onChange} disabled={disabled}
+        className={`text-[11px] font-semibold px-2 py-1 rounded border transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${disabled ? "border-line text-dim" : "border-green/40 text-green hover:bg-green/10"}`}>
+        {name ? "Change" : "Pick"}
       </button>
     </div>
   );
