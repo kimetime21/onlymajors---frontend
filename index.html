@@ -6116,19 +6116,18 @@ function ScorePredictor({ value, onChange, locked }) {
   const ITEM_H = 44;
 
   // Initialize scroll position to current value (or E / 0 by default).
-  // Wrap in requestAnimationFrame so layout settles before we set scrollTop —
-  // without it, the reel briefly flashes -20 (the top of SCORE_OPTIONS) on
-  // mount before the snap-to-E lands.
-  useEffect(() => {
+  // useLayoutEffect runs synchronously after DOM mutations but BEFORE the
+  // browser paints — this guarantees the reel never visibly starts at -20.
+  // useEffect + requestAnimationFrame both still allowed one paint cycle at
+  // scrollTop=0 (which shows -20), which is what caused the "starts at -20"
+  // complaint even after the rAF fix.
+  React.useLayoutEffect(() => {
     const startVal = value ?? 0;
     setDraftValue(startVal);
-    const id = requestAnimationFrame(() => {
-      if (!scrollRef.current) return;
-      const idx = SCORE_OPTIONS.indexOf(startVal);
-      if (idx === -1) return;
-      scrollRef.current.scrollTop = idx * ITEM_H;
-    });
-    return () => cancelAnimationFrame(id);
+    if (!scrollRef.current) return;
+    const idx = SCORE_OPTIONS.indexOf(startVal);
+    if (idx === -1) return;
+    scrollRef.current.scrollTop = idx * ITEM_H;
   }, []); // eslint-disable-line
 
   // Resync when server value changes
