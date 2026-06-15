@@ -3386,7 +3386,6 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   const liveMajor   = MAJORS.find(m => m.status === "live");
   const nextMajor   = MAJORS.find(m => m.status === "upcoming");
   const focusMajor  = liveMajor || nextMajor || MAJORS[MAJORS.length - 1];
-  const [livePreview, setLivePreview] = useState(false);
   const [entryOpen,   setEntryOpen]   = useState(false);
   const [hofOpen,     setHofOpen]     = useState(false);
   const [avgOpen,     setAvgOpen]     = useState(false);
@@ -3394,7 +3393,6 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   // Real picks gate — same logic as the league picks tab.
   const picksOpen = arePicksOpen(focusMajor);
   const isLockedForTourney = focusMajor.status === "live" || focusMajor.status === "complete";
-  // Dropdowns stay user-controlled — never auto-open with preview toggle.
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
       {/* Body — matches league-card top padding so the two sections feel like a set. */}
@@ -3464,7 +3462,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
       </button>
       {hofOpen && (
         <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
-          <HallOfFameList livePreview={livePreview} />
+          <HallOfFameList />
         </div>
       )}
 
@@ -3486,7 +3484,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
       </button>
       {avgOpen && (
         <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
-          <LeagueWideAveragesList memberNumber={memberNumber} authedUser={authedUser} livePreview={livePreview} />
+          <LeagueWideAveragesList memberNumber={memberNumber} authedUser={authedUser} />
         </div>
       )}
 
@@ -3590,7 +3588,7 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
             onClick={onClose}
             right={
               <span className="text-[11px] uppercase tracking-[0.18em] font-semibold px-2 py-1 rounded"
-                style={{ background: "var(--green)", color: "var(--bg-1)" }}>Live preview</span>
+                style={{ background: "var(--green)", color: "var(--bg-1)" }}>Live</span>
             }
           />
         </div>
@@ -3714,7 +3712,7 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
         ]} />
 
         <div className="text-center text-[12px] text-dim pb-4">
-          Sample data — the real live page populates from DataGolf once the contest goes active.
+          Live updates refresh every 60 seconds during play.
         </div>
       </main>
     </div>,
@@ -3722,25 +3720,17 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
   );
 }
 
-// Mock-data placeholders. In `livePreview` mode they fill in with realistic
-// sample data so members can see what the section will look like live.
-function HallOfFameList({ livePreview = false }) {
-  // The Club Championship launches at the 2026 U.S. Open — there's no prior
-  // archive. So even in "live preview" mode we only project the two 2026
-  // majors that fall inside the launch window (U.S. Open, then The Open).
-  const rows = livePreview ? [
-    { year: 2026, major: "U.S. Open", champion: "Austin K.", total: 5612300, you: true  },
-    { year: 2026, major: "The Open",  champion: "Mark D.",   total: 4845620, you: false },
-  ] : [
-    { year: 2026, major: "U.S. Open", champion: "—", total: null, you: false },
-    { year: 2026, major: "The Open",  champion: "—", total: null, you: false },
+// Hall of Fame — placeholder until the first CC concludes. Backend-archive
+// integration ships once results exist (Sunday of U.S. Open week).
+function HallOfFameList() {
+  const rows = [
+    { year: 2026, major: "U.S. Open", champion: "—", total: null },
+    { year: 2026, major: "The Open",  champion: "—", total: null },
   ];
   return (
     <div className="space-y-1">
       <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
-        {livePreview
-          ? "Sample data — 2026 season"
-          : "Launches at the 2026 U.S. Open"}
+        Hall of Fame — first champion crowned this Sunday
       </div>
       {rows.map((r, i) => (
         <div key={i} className="flex items-center justify-between gap-3 py-1.5 border-b border-line last:border-0">
@@ -4069,56 +4059,14 @@ function ClubChampPickRow({ slot, name, onChange, disabled }) {
   );
 }
 
-function LeagueWideAveragesList({ memberNumber, authedUser, livePreview = false }) {
-  const youName = authedUser?.displayName?.split(/[\s@]/)[0] || "You";
-  // In live preview, drop "you" outside the top 10 to demonstrate the pinned
-  // row at the bottom. Sample averages roughly match real-world numbers.
-  const sampleTop = livePreview ? [
-    { rank: 1,  name: "Mark D.",    avg: 4845620 },
-    { rank: 2,  name: "Trey W.",    avg: 4612300 },
-    { rank: 3,  name: "Jenna L.",   avg: 4498875 },
-    { rank: 4,  name: "Sam R.",     avg: 4380120 },
-    { rank: 5,  name: "Larry P.",   avg: 4255000 },
-    { rank: 6,  name: "Boo P.",     avg: 4112400 },
-    { rank: 7,  name: "Caleb J.",   avg: 3998800 },
-    { rank: 8,  name: "Thorne H.",  avg: 3922100 },
-    { rank: 9,  name: "Hannah M.",  avg: 3877500 },
-    { rank: 10, name: "Cole T.",    avg: 3812000 },
-  ] : Array.from({ length: 10 }, (_, i) => ({
-    rank: i + 1, name: `Member #${i + 1}`, avg: null,
-  }));
-  const youRank = livePreview ? 47 : null;
-  const youAvg  = livePreview ? 2841320 : null;
-  const fmtM = (n) => n == null ? "—" : `$${(n/1e6).toFixed(2)}M`;
+// Club Championship averages — populated once the first contest completes.
+// Backend hook ships with the archive integration after U.S. Open Sunday.
+function LeagueWideAveragesList({ memberNumber, authedUser }) {
   return (
-    <div>
-      <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
-        {livePreview ? "Tournament average · 2,341 members" : "Tournament average · all members"}
-      </div>
-      <div className="space-y-0">
-        {sampleTop.map((r) => (
-          <div key={r.rank} className="flex items-center gap-3 py-1.5 px-2 border-b border-line last:border-0">
-            <div className="w-6 text-[12px] font-mono text-dim">{r.rank}</div>
-            <div className="flex-1 text-sm font-medium truncate">{r.name}</div>
-            <div className="text-sm font-semibold">{fmtM(r.avg)}</div>
-          </div>
-        ))}
-      </div>
-      {/* Pinned "you" row when outside the top 10. */}
-      <div className="mt-3 pt-2 border-t border-dashed border-line">
-        <div className="flex items-center gap-3 py-1.5 px-2 rounded"
-          style={{ background: "rgba(43,69,53,0.06)" }}>
-          <div className="w-8 text-[12px] font-mono font-semibold" style={{ color: "var(--green)" }}>
-            {livePreview ? `#${youRank}` : `#${memberNumber ?? "—"}`}
-          </div>
-          <div className="flex-1 text-sm font-medium truncate">
-            {youName} <span className="text-[10px] uppercase tracking-wider text-green ml-2">You</span>
-          </div>
-          <div className="text-sm font-semibold">{fmtM(youAvg)}</div>
-        </div>
-        <div className="text-[11px] text-dim text-center mt-1.5">
-          {livePreview ? "Your row pins here when you're outside the top 10." : "Your row pins here once you're outside the top 10."}
-        </div>
+    <div className="text-center py-6">
+      <div className="text-sm font-semibold text-muted mb-1">No averages yet</div>
+      <div className="text-[12px] text-dim leading-relaxed max-w-xs mx-auto">
+        Tournament averages populate after the first Club Championship wraps. Your row pins to the top here once you're a member of the standings.
       </div>
     </div>
   );
@@ -8089,20 +8037,19 @@ function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onCl
 
   // Use the dynamic field if available, else fall back to curated FIELDS list.
   // Dynamic field comes from /api/field (DataGolf), includes the full ~156
-  // players plus per-player favoriteRank + winOdds from /preds/pre-tournament.
+  // players plus OWGR rank per player from /preds/get-dg-rankings.
   const fieldPlayers = useMemo(() => {
     if (dynamicField?.players?.length) {
       return dynamicField.players.map(p => ({
         id:       p.gid,
         name:     p.name,
         country:  p.country,
-        favRank:  p.favoriteRank ?? null,
-        winOdds:  p.winOdds ?? null,
+        favRank:  p.favoriteRank ?? p.owgrRank ?? null,
       }));
     }
     return (FIELDS[majorId] || []).map(gid => {
       const g = G[gid];
-      return g ? { id: gid, name: g.name, country: g.country, favRank: null, winOdds: null } : null;
+      return g ? { id: gid, name: g.name, country: g.country, favRank: null } : null;
     }).filter(Boolean);
   }, [dynamicField, majorId]);
 
@@ -8158,22 +8105,22 @@ function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onCl
     return Object.entries(buckets).sort(([a],[b]) => a.localeCompare(b));
   }, [everyoneElse]);
 
-  // Render a single player row. Shows win odds % on the right for favorites,
-  // nothing extra for A-Z entries.
+  // Render a single player row. Shows world ranking (#N) on the right for
+  // favorites, nothing extra for A-Z entries.
   const renderRow = (g, opts = {}) => {
     const locked = lockedFromOthers.has(g.id);
     const lineup = inLineup.has(g.id);
     const disabled = locked || lineup;
-    const oddsLabel = opts.showOdds && g.winOdds != null
-      ? `${(g.winOdds * 100).toFixed(1)}%`
+    const rankLabel = opts.showRank && g.favRank != null
+      ? `#${g.favRank}`
       : null;
     return (
       <button key={g.id} disabled={disabled} onClick={() => onPick(g.id)}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-green/10 active:bg-green/15"}`}>
         <CountryCode code={g.country} className="w-9" />
         <span className="flex-1 font-medium">{g.name}</span>
-        {oddsLabel && !locked && !lineup && (
-          <span className="text-[11px] font-mono tabular-nums text-dim whitespace-nowrap">{oddsLabel}</span>
+        {rankLabel && !locked && !lineup && (
+          <span className="text-[11px] font-mono tabular-nums text-dim whitespace-nowrap">{rankLabel}</span>
         )}
         {locked && <span className="text-[11px] px-1.5 py-0.5 rounded bg-black/[0.04] text-dim font-semibold whitespace-nowrap">Played earlier</span>}
         {lineup && !locked && <span className="text-[11px] px-1.5 py-0.5 rounded bg-gold/15 text-gold font-semibold border border-gold/30 whitespace-nowrap">In lineup</span>}
@@ -8230,14 +8177,14 @@ function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onCl
           </div>
         )}
 
-        {/* Top 50 favorites section (only shown when we have betting data). */}
+        {/* Top 50 OWGR section (only shown when ranking data is available). */}
         {hasFavorites && (
           <div>
             <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-3 py-1.5 border-b border-line z-10">
-              <div className="text-[11px] uppercase tracking-[0.18em] text-text font-bold">Top 50 Favorites</div>
-              <div className="text-[10px] uppercase tracking-[0.15em] text-dim font-medium">By odds to win</div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-text font-bold">Top 50 OWGR</div>
+              <div className="text-[10px] uppercase tracking-[0.15em] text-dim font-medium">Official World Golf Ranking</div>
             </div>
-            {favorites.map(p => renderRow(p, { showOdds: true }))}
+            {favorites.map(p => renderRow(p, { showRank: true }))}
           </div>
         )}
 
