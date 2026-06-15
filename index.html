@@ -1267,6 +1267,39 @@ async function savePick(teamId, majorId, slot, leagueId) {
   });
   if (!res.ok) throw new Error(`PUT /api/picks HTTP ${res.status}`);
 }
+// ─────────────────────────────────────────────────────────────
+// Club Championship — separate scoreboard from leagues. One roster per
+// member per major. 6 starters, no bench, score-prediction tiebreaker.
+// Picks are independent from any league pick the user has made.
+// ─────────────────────────────────────────────────────────────
+async function apiGetClubChampPicks(majorId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/club-championship/picks/${majorId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /api/club-championship/picks HTTP ${res.status}`);
+  return await res.json();   // { starters: [], scorePrediction: number|null, submittedAt: iso|null }
+}
+async function apiSaveClubChampPicks(majorId, payload) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/club-championship/picks/${majorId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      starters:        payload?.starters  || [],
+      scorePrediction: payload?.scorePrediction ?? null,
+    }),
+  });
+  if (!res.ok) throw new Error(`PUT /api/club-championship/picks HTTP ${res.status}`);
+  return await res.json();
+}
+async function apiGetClubChampStandings(majorId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/club-championship/standings/${majorId}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /api/club-championship/standings HTTP ${res.status}`);
+  return await res.json();
+}
+async function apiGetClubChampArchive() {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/club-championship/archive`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`GET /api/club-championship/archive HTTP ${res.status}`);
+  return await res.json();
+}
+
 async function fetchAllChat(leagueId) {
   const res = await authFetch(`${ONLYMAJORS_API}/api/chat${lqs(leagueId)}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`/api/chat HTTP ${res.status}`);
@@ -5951,14 +5984,20 @@ function ScorePredictor({ value, onChange, locked }) {
   const scrollRef = useRef(null);
   const ITEM_H = 44;
 
-  // Initialize scroll position to current value (or 0 by default)
+  // Initialize scroll position to current value (or E / 0 by default).
+  // Wrap in requestAnimationFrame so layout settles before we set scrollTop —
+  // without it, the reel briefly flashes -20 (the top of SCORE_OPTIONS) on
+  // mount before the snap-to-E lands.
   useEffect(() => {
-    if (!scrollRef.current) return;
     const startVal = value ?? 0;
-    const idx = SCORE_OPTIONS.indexOf(startVal);
-    if (idx === -1) return;
-    scrollRef.current.scrollTop = idx * ITEM_H;
-    setDraftValue(value ?? 0);
+    setDraftValue(startVal);
+    const id = requestAnimationFrame(() => {
+      if (!scrollRef.current) return;
+      const idx = SCORE_OPTIONS.indexOf(startVal);
+      if (idx === -1) return;
+      scrollRef.current.scrollTop = idx * ITEM_H;
+    });
+    return () => cancelAnimationFrame(id);
   }, []); // eslint-disable-line
 
   // Resync when server value changes
