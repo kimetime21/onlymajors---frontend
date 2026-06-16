@@ -3393,13 +3393,31 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   // Real picks gate — same logic as the league picks tab.
   const picksOpen = arePicksOpen(focusMajor);
   const isLockedForTourney = focusMajor.status === "live" || focusMajor.status === "complete";
+
+  // Live entry count — pulled from the CC standings endpoint. Refreshes
+  // every 30s while the card is mounted so the chip ticks up as members
+  // enter mid-session. Also refreshes whenever the entry modal closes
+  // (someone might have just locked in their own picks).
+  const [entryCount, setEntryCount] = useState(null);
+  useEffect(() => {
+    if (!focusMajor?.id) return;
+    let cancelled = false;
+    const load = () => {
+      apiGetClubChampStandings(focusMajor.id)
+        .then(d => { if (!cancelled) setEntryCount(d?.fieldSize ?? 0); })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [focusMajor?.id, entryOpen]);
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
       {/* Body — matches league-card top padding so the two sections feel like a set. */}
       <div className="p-5 sm:p-6 space-y-4">
         {/* Header row */}
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 shrink-0 flex items-center justify-center">
               <OnlyMajorsLogo size={48} full={true} />
             </div>
@@ -3414,6 +3432,18 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
               </div>
             </div>
           </div>
+          {/* Live entry counter — chip sits top-right so it always shows the
+              current participation count without expanding the averages. */}
+          {entryCount != null && (
+            <div className="shrink-0 text-right leading-tight">
+              <div className="display-num font-bold text-xl" style={{ color: "var(--green)" }}>
+                {entryCount}
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-dim font-semibold">
+                {entryCount === 1 ? "entry" : "entries"}
+              </div>
+            </div>
+          )}
         </div>
         <div className="text-sm text-muted leading-relaxed">
           Six starters, every member of OnlyMajors, one tournament. Separate from your league picks. The winner of each Club Championship is enshrined in the Hall of Fame.
@@ -3901,6 +3931,16 @@ function ClubChampionshipEntryPreviewModal({ focusMajor, memberNumber, authedUse
               </div>
               <MiniScoreReel value={scorePrediction} onChange={setScorePrediction} locked={locked} />
             </div>
+            {/* Small-font confirmation of the locked-in prediction. Visible
+                once the user has saved at least once (savedAt is set) so they
+                have a clear "this is what's on file" signal. */}
+            {savedAt && (
+              <div className="mt-1.5 text-[11px] text-dim text-right">
+                Locked in at <span className="font-mono font-semibold" style={{ color: "var(--green)" }}>{fmtScoreToPar(scorePrediction)}</span>
+                {" · "}
+                <span className="text-dim">tiebreaker</span>
+              </div>
+            )}
           </section>
 
           <section>
@@ -3994,9 +4034,12 @@ function MiniScoreReel({ value, onChange, locked }) {
   const PADDING = ITEM_H; // half a slot of pad on either end so the center row fits
   const scrollRef = useRef(null);
   const current = (value ?? 0);
+  // Re-sync scroll position whenever the `value` prop changes externally —
+  // covers the case where the CC modal opens with default 0, then saved picks
+  // load async from the backend and update value to the previously-locked
+  // prediction. Without this the reel would stay parked at E. rAF wraps it
+  // so layout has settled before we set scrollTop.
   useEffect(() => {
-    // Wait until after layout settles — when the modal animates in, scrollTop
-    // can otherwise be clamped to 0 because the container hasn't measured yet.
     const id = requestAnimationFrame(() => {
       if (!scrollRef.current) return;
       const startIdx = SCORE_OPTIONS.indexOf(current);
@@ -4004,7 +4047,7 @@ function MiniScoreReel({ value, onChange, locked }) {
       scrollRef.current.scrollTop = startIdx * ITEM_H;
     });
     return () => cancelAnimationFrame(id);
-  }, []); // eslint-disable-line
+  }, [current]);
   const debounceRef = useRef(null);
   const handleScroll = () => {
     if (locked) return;
@@ -4059,15 +4102,129 @@ function ClubChampPickRow({ slot, name, onChange, disabled }) {
   );
 }
 
-// Club Championship averages — populated once the first contest completes.
-// Backend hook ships with the archive integration after U.S. Open Sunday.
+// Club Championship submitters + standings. Pre-tournament shows the list of
+// members who have entered (by submission time — earliest first, which is
+// also the tiebreaker order). During/after the tournament, the top 10 results
+// take over. Current user pinned at the bottom regardless of position so they
+// always see themselves and know they're entered.
 function LeagueWideAveragesList({ memberNumber, authedUser }) {
-  return (
-    <div className="text-center py-6">
-      <div className="text-sm font-semibold text-muted mb-1">No averages yet</div>
-      <div className="text-[12px] text-dim leading-relaxed max-w-xs mx-auto">
-        Tournament averages populate after the first Club Championship wraps. Your row pins to the top here once you're a member of the standings.
+  const liveMajor   = MAJORS.find(m => m.status === "live");
+  const nextMajor   = MAJORS.find(m => m.status === "upcoming");
+  const focusMajor  = liveMajor || nextMajor || MAJORS[MAJORS.length - 1];
+  const [standings, setStandings] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    if (!focusMajor?.id) return;
+    let cancelled = false;
+    apiGetClubChampStandings(focusMajor.id)
+      .then(d => { if (!cancelled) setStandings(d); })
+      .catch(e => { if (!cancelled) setErr(e.message); });
+    return () => { cancelled = true; };
+  }, [focusMajor?.id]);
+
+  const youName = (() => {
+    const f = authedUser?.firstName, l = authedUser?.lastName;
+    if (f && l) return `${f} ${l[0].toUpperCase()}.`;
+    return authedUser?.displayName?.split(/[\s@]/)[0] || "You";
+  })();
+  const youUserId = authedUser?.id ? Number(authedUser.id) : null;
+
+  // Top 10 selection: prefer real money standings if the tournament is live
+  // or complete, otherwise show submitters in submission-time order.
+  const hasResults = (standings?.top10?.length || 0) > 0;
+  const submitters = standings?.submitters || [];
+  const fieldSize  = standings?.fieldSize ?? submitters.length;
+
+  let rows;
+  if (hasResults) {
+    rows = standings.top10.map(r => ({
+      rank:  r.rank,
+      label: r.name,
+      total: r.total,
+      isYou: r.userId === youUserId,
+    }));
+  } else {
+    rows = submitters.slice(0, 10).map((s, i) => ({
+      rank:  i + 1,
+      label: s.name,
+      total: null,
+      isYou: s.userId === youUserId,
+    }));
+  }
+
+  // Has the current user submitted? Used to decide what to render for the
+  // pinned-at-bottom "you" row.
+  const youSubmitter = submitters.find(s => s.userId === youUserId) || null;
+  const youInTopTen  = rows.some(r => r.isYou);
+  const fmtM = (n) => n == null ? "—" : `$${(n/1e6).toFixed(2)}M`;
+
+  if (err) {
+    return (
+      <div className="text-[12px] text-dim text-center py-4">
+        Couldn't load standings — try again in a sec.
       </div>
+    );
+  }
+  if (!standings) {
+    return (
+      <div className="text-[12px] text-dim text-center py-4">Loading standings…</div>
+    );
+  }
+  if (fieldSize === 0) {
+    return (
+      <div className="text-center py-6">
+        <div className="text-sm font-semibold text-muted mb-1">No entries yet</div>
+        <div className="text-[12px] text-dim leading-relaxed max-w-xs mx-auto">
+          Be the first to enter the Club Championship — your row will pin here as soon as you lock in.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
+        {hasResults
+          ? `Tournament total · ${fieldSize} ${fieldSize === 1 ? "member" : "members"}`
+          : `${fieldSize} ${fieldSize === 1 ? "member" : "members"} entered · ordered by submission`}
+      </div>
+      <div className="space-y-0">
+        {rows.map((r) => (
+          <div key={`${r.rank}-${r.label}`} className="flex items-center gap-3 py-1.5 px-2 border-b border-line last:border-0"
+            style={r.isYou ? { background: "rgba(43,69,53,0.06)" } : {}}>
+            <div className="w-6 text-[12px] font-mono text-dim">{r.rank}</div>
+            <div className="flex-1 text-sm font-medium truncate">
+              {r.label}
+              {r.isYou && <span className="text-[10px] uppercase tracking-wider text-green ml-2">You</span>}
+            </div>
+            <div className="text-sm font-semibold">{hasResults ? fmtM(r.total) : "—"}</div>
+          </div>
+        ))}
+      </div>
+      {/* Pinned "you" row — visible regardless of whether you're in the top 10
+          OR you've actually submitted yet. Gives a clear "where am I in this"
+          anchor for every member. */}
+      {!youInTopTen && (
+        <div className="mt-3 pt-2 border-t border-dashed border-line">
+          <div className="flex items-center gap-3 py-1.5 px-2 rounded"
+            style={{ background: "rgba(43,69,53,0.06)" }}>
+            <div className="w-8 text-[12px] font-mono font-semibold" style={{ color: "var(--green)" }}>
+              {memberNumber != null ? `#${memberNumber}` : "—"}
+            </div>
+            <div className="flex-1 text-sm font-medium truncate">
+              {youSubmitter?.name || youName}
+              <span className="text-[10px] uppercase tracking-wider text-green ml-2">You</span>
+              {!youSubmitter && (
+                <span className="text-[10px] uppercase tracking-wider text-dim ml-2">Not entered yet</span>
+              )}
+            </div>
+            <div className="text-sm font-semibold">
+              {hasResults && standings.you?.total != null ? fmtM(standings.you.total) : "—"}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -5685,6 +5842,51 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
   const starterCount = 4;
   const benchCount   = 2;
   const sixStarter   = false;
+
+  // Click-to-swap state. First tap on a row's move handle "picks up" that
+  // slot; second tap on another row swaps them. Only enabled before the
+  // tournament starts (major.status === "upcoming"). Cleared on selectedMajor
+  // change so you don't accidentally swap across majors.
+  const [swapFrom, setSwapFrom] = useState(null); // { role: "starter"|"bench", slotIndex: number }
+  useEffect(() => { setSwapFrom(null); }, [selectedMajor, viewAs]);
+  // Escape cancels the in-progress swap.
+  useEffect(() => {
+    if (!swapFrom) return;
+    const onKey = (e) => { if (e.key === "Escape") setSwapFrom(null); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [swapFrom]);
+  // Apply a swap between two slots within the current major's roster. Handles
+  // starter↔starter, bench↔bench, starter↔bench (including swapping into
+  // empty slots, which acts as a move). The slot can be empty on either side.
+  const doSwap = (from, to) => {
+    if (!from || !to) return;
+    if (from.role === to.role && from.slotIndex === to.slotIndex) {
+      setSwapFrom(null);
+      return;
+    }
+    const next = JSON.parse(JSON.stringify(picks));
+    const slot = next[viewAs][selectedMajor];
+    const a = slot[from.role === "starter" ? "starters" : "bench"];
+    const b = slot[to.role === "starter" ? "starters" : "bench"];
+    const ai = from.slotIndex, bi = to.slotIndex;
+    const tmp = a[ai] ?? null;
+    a[ai] = b[bi] ?? null;
+    b[bi] = tmp;
+    setPicks(next);
+    setSwapFrom(null);
+  };
+  const onSwapHandle = (role, slotIndex) => {
+    if (!swapFrom) {
+      setSwapFrom({ role, slotIndex });
+    } else {
+      doSwap(swapFrom, { role, slotIndex });
+    }
+  };
+  const isSwapSource = (role, slotIndex) =>
+    swapFrom?.role === role && swapFrom?.slotIndex === slotIndex;
+  const isSwapTarget = (role, slotIndex) =>
+    swapFrom && !isSwapSource(role, slotIndex);
   // If the currently selected major isn't in this league's includedMajors,
   // snap to the first one that is. Runs at mount + whenever the league
   // boundary changes.
@@ -5801,7 +6003,11 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
                   onSubOut={() => openSubOut({ starterIndex: i })}
                   onRemove={() => onRemove(selectedMajor, "starter", i)}
                   nextTeeTime={teeTimeFor(slot.starters[i])}
-                  nextRoundLabel={nextRoundLabel} />
+                  nextRoundLabel={nextRoundLabel}
+                  swapEnabled={major.status === "upcoming"}
+                  isSwapSource={isSwapSource("starter", i)}
+                  isSwapTarget={isSwapTarget("starter", i)}
+                  onSwapHandle={() => onSwapHandle("starter", i)} />
               ))}
             </div>
           </section>
@@ -5810,6 +6016,13 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
           {benchCount > 0 && (
             <section>
               <SectionHeader title="Bench" sub={`${benchCount} golfers · earnings only count if subbed in`} tag="RESERVE" />
+              {swapFrom && (
+                <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-md text-[12px] font-medium"
+                  style={{ background: "rgba(43,69,53,0.08)", color: "var(--green)" }}>
+                  <span>Tap another slot to swap · or press Esc to cancel</span>
+                  <button onClick={() => setSwapFrom(null)} className="text-[11px] font-semibold hover:underline">Cancel</button>
+                </div>
+              )}
               <div className="space-y-2">
                 {Array.from({ length: benchCount }, (_, i) => (
                   <PickRow key={i} role="bench" slotIndex={i+1} golferId={slot.bench[i]} majorId={selectedMajor} major={major}
@@ -5819,7 +6032,11 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
                     onSub={() => openSub({ benchIndex: i })}
                     onRemove={() => onRemove(selectedMajor, "bench", i)}
                     nextTeeTime={teeTimeFor(slot.bench[i])}
-                    nextRoundLabel={nextRoundLabel} />
+                    nextRoundLabel={nextRoundLabel}
+                    swapEnabled={major.status === "upcoming"}
+                    isSwapSource={isSwapSource("bench", i)}
+                    isSwapTarget={isSwapTarget("bench", i)}
+                    onSwapHandle={() => onSwapHandle("bench", i)} />
                 ))}
               </div>
             </section>
@@ -6262,7 +6479,7 @@ function PlayedList({ teamId, picks }) {
   );
 }
 
-function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut, isIn, onClick, onSub, onSubOut, onRemove, nextTeeTime, nextRoundLabel }) {
+function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut, isIn, onClick, onSub, onSubOut, onRemove, nextTeeTime, nextRoundLabel, swapEnabled, isSwapSource, isSwapTarget, onSwapHandle }) {
   const g = golferId ? (G[golferId] || GOLFERS_EXT[golferId] || null) : null;
   const earn = golferId ? EARN[majorId]?.[golferId] : null;
   const total = golferId ? golferTotal(majorId, golferId) : null;
@@ -6270,6 +6487,22 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
 
   // Empty slot — clean, no role label
   if (!g) {
+    // When a swap is in progress, an empty slot is a valid swap target too —
+    // tapping it moves the picked-up golfer into the empty seat.
+    if (isSwapTarget) {
+      return (
+        <button onClick={onSwapHandle}
+          className="group w-full rounded-lg border-2 border-dashed transition-all px-3 sm:px-4 py-3 flex items-center gap-3"
+          style={{ borderColor: "var(--green)", background: "rgba(43,69,53,0.05)" }}>
+          <div className="w-9 h-9 rounded-md flex items-center justify-center text-lg"
+            style={{ background: "var(--green)", color: "var(--bg-1)" }}>↓</div>
+          <div className="flex-1 text-left">
+            <div className="font-semibold text-sm" style={{ color: "var(--green)" }}>Drop here</div>
+            <div className="text-[12px] text-dim">Tap to move the picked-up golfer into this slot</div>
+          </div>
+        </button>
+      );
+    }
     return (
       <button onClick={onClick} disabled={major.status !== "upcoming"}
         className={`group w-full rounded-lg border border-dashed border-line-2 hover:border-green/50 hover:bg-green/5 transition-all px-3 sm:px-4 py-3 flex items-center gap-3 ${major.status === "complete" ? "opacity-40 cursor-not-allowed" : ""}`}>
@@ -6285,12 +6518,42 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
 
   // Background hint — barely-there tint, no border-color clash. Uses the
   // brighter pick-tab green at low opacity so it reads as a fresh wash rather
-  // than the muddy forest tone.
-  const bg = isIn ? "rgba(15, 122, 62, 0.06)" : "rgba(184, 29, 29, 0.05)";
+  // than the muddy forest tone. Swap states override with stronger tints so
+  // the user can see which row is picked up and which rows are valid targets.
+  const baseBg = isIn ? "rgba(15, 122, 62, 0.06)" : "rgba(184, 29, 29, 0.05)";
+  const bg = isSwapSource
+    ? "rgba(43,69,53,0.14)"
+    : isSwapTarget
+      ? "rgba(43,69,53,0.04)"
+      : baseBg;
+  const borderClass = isSwapSource
+    ? "border-2"
+    : isSwapTarget
+      ? "border border-dashed"
+      : "border border-line";
+  const borderStyle = isSwapSource
+    ? { borderColor: "var(--green)" }
+    : isSwapTarget
+      ? { borderColor: "var(--green)" }
+      : {};
 
   return (
-    <div className={`rounded-lg px-3 sm:px-4 py-2.5 border border-line ${isMC ? "opacity-60" : ""}`} style={{ background: bg }}>
+    <div className={`rounded-lg px-3 sm:px-4 py-2.5 ${borderClass} ${isMC ? "opacity-60" : ""}`} style={{ background: bg, ...borderStyle }}>
       <div className="flex items-center gap-3">
+        {/* Swap handle — only visible pre-tournament. Two-tap mechanic: first
+            tap on a row picks it up, second tap on a different row swaps. */}
+        {swapEnabled && (
+          <button onClick={onSwapHandle}
+            title={isSwapSource ? "Tap another slot to swap · Esc to cancel" : "Move this pick"}
+            className={`w-7 h-9 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSwapSource ? "" : "hover:bg-black/[0.05]"}`}
+            style={isSwapSource
+              ? { background: "var(--green)", color: "var(--bg-1)" }
+              : { color: "var(--dim)" }}>
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 3l-3 3 3 3M11 7l3 3-3 3M2 6h10M14 10H4"/>
+            </svg>
+          </button>
+        )}
         {/* Country chip — also doubles as the change button (no separate Change button) */}
         <button onClick={major.status === "upcoming" ? onClick : undefined}
           disabled={major.status !== "upcoming"}
@@ -7023,8 +7286,39 @@ function PicksOpenLiveState({ major, picks, onGotoPicks, leagueId }) {
   const hours = Math.floor((diffMs % (24*60*60*1000)) / (60*60*1000));
   const minutes = Math.floor((diffMs % (60*60*1000)) / (60*1000));
 
+  // Pull live league membership from the backend so this list reflects who
+  // ACTUALLY joined the league — not the hardcoded TEAMS array. Refetches
+  // every 30s in case someone joins mid-session. Falls back to the static
+  // teamsForLeague() if the API call hasn't resolved yet, so SSR/first paint
+  // still has something to show.
+  const [liveMembers, setLiveMembers] = useState(null);
+  useEffect(() => {
+    if (!leagueId) return;
+    let cancelled = false;
+    const fetchMembers = () => {
+      apiLeagueMembers(leagueId)
+        .then(list => { if (!cancelled) setLiveMembers(Array.isArray(list) ? list : []); })
+        .catch(() => {});
+    };
+    fetchMembers();
+    const id = setInterval(fetchMembers, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [leagueId]);
+
+  const leagueTeams = useMemo(() => {
+    if (liveMembers) {
+      return liveMembers.map(m => ({
+        id:        m.teamId,
+        name:      m.teamName || m.displayName || (m.email ? m.email.split("@")[0] : null) || "Member",
+        teamColor: m.teamColor || "#2b4535",
+        owner:     m.displayName || null,
+        claimed:   !!m.claimed,
+      }));
+    }
+    return teamsForLeague(leagueId);
+  }, [liveMembers, leagueId]);
+
   // Tally who's submitted vs not
-  const leagueTeams    = teamsForLeague(leagueId);
   const submittedTeams = leagueTeams.filter(t => {
     const slot = picks?.[t.id]?.[major.id];
     return slot && slot.starters?.filter(Boolean).length === 4;
@@ -7077,7 +7371,7 @@ function PicksOpenLiveState({ major, picks, onGotoPicks, leagueId }) {
       </div>
 
       <div className="glass rounded-2xl p-5">
-        <h3 className="font-semibold mb-3">League status · {submittedTeams.length} of {TEAMS.length} picked</h3>
+        <h3 className="font-semibold mb-3">League status · {submittedTeams.length} of {leagueTeams.length} picked</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {submittedTeams.map(t => (
             <div key={t.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-green/8 border border-green/25">
