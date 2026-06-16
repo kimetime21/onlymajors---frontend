@@ -6292,12 +6292,13 @@ function ScorePredictor({ value, onChange, locked }) {
   const scrollRef = useRef(null);
   const ITEM_H = 44;
 
-  // Initialize scroll position to current value (or E / 0 by default).
-  // useLayoutEffect runs synchronously after DOM mutations but BEFORE the
-  // browser paints — this guarantees the reel never visibly starts at -20.
-  // useEffect + requestAnimationFrame both still allowed one paint cycle at
-  // scrollTop=0 (which shows -20), which is what caused the "starts at -20"
-  // complaint even after the rAF fix.
+  // Sync scroll position to the `value` prop — both on mount AND whenever
+  // the prop changes externally (e.g., saved picks load async from the
+  // backend after first render). useLayoutEffect runs synchronously before
+  // paint so the reel never visibly starts at -20. Watching [value] in the
+  // dep array fixes the previous bug where the reel parked at the initial
+  // mount value (null → 0 → -20 visually) and never re-snapped when the
+  // server's saved value arrived later.
   React.useLayoutEffect(() => {
     const startVal = value ?? 0;
     setDraftValue(startVal);
@@ -6305,12 +6306,7 @@ function ScorePredictor({ value, onChange, locked }) {
     const idx = SCORE_OPTIONS.indexOf(startVal);
     if (idx === -1) return;
     scrollRef.current.scrollTop = idx * ITEM_H;
-  }, []); // eslint-disable-line
-
-  // Resync when server value changes
-  useEffect(() => {
-    if (value != null) setDraftValue(value);
-  }, [value]);
+  }, [value]); // eslint-disable-line
 
   // Debounced "snap to nearest" — updates draft only, no save
   const debounceRef = useRef(null);
