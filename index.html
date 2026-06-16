@@ -5899,20 +5899,27 @@ function PicksTab({ viewAs, selectedMajor, setSelectedMajor, picks, setPicks, op
   const team = TEAMS.find(t => t.id === viewAs);
   const major = M[selectedMajor];
   const slot = picks[viewAs][selectedMajor];
-  // Tee-time data — only fetched + shown while major is live and the next
-  // round hasn't begun yet. Picks-tab refresh re-pulls on every render of
-  // the major change, with server-side 5 min cache absorbing the load.
+  // Tee-time data — surfaced for the most relevant round:
+  //   • Pre-tournament (major upcoming, picks open): R1 tee times so the
+  //     user can plan around Thursday tee times while picking.
+  //   • Live (major in progress, next round not yet teed off): next-round
+  //     tee times so users know when their lineup needs attention.
+  //   • Otherwise: no fetch.
+  // Server-side 5 min cache absorbs the load across all users.
   const nextRound = useMemo(() => {
-    if (major?.status !== "live" || !major?.rounds) return null;
+    if (!major?.rounds) return null;
     const now = Date.now();
-    // The "next round" is the earliest round whose start time is in the
-    // future. If R1 hasn't teed off yet → 1; if R3 is in progress → null.
+    // Pre-tournament: always R1.
+    if (major.status === "upcoming" && arePicksOpen(major)) return 1;
+    if (major.status !== "live") return null;
+    // Live: earliest round whose start time is in the future. If R3 is in
+    // progress → null (don't show a tee time during play).
     for (const r of [1, 2, 3, 4]) {
       const start = new Date(major.rounds[`r${r}`]).getTime();
       if (start > now) return r;
     }
     return null;
-  }, [major?.id, major?.status]);
+  }, [major?.id, major?.status, major?.rounds]);
   const [teeTimes, setTeeTimes] = useState({});
   useEffect(() => {
     if (!nextRound) { setTeeTimes({}); return; }
@@ -6540,20 +6547,6 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
   return (
     <div className={`rounded-lg px-3 sm:px-4 py-2.5 ${borderClass} ${isMC ? "opacity-60" : ""}`} style={{ background: bg, ...borderStyle }}>
       <div className="flex items-center gap-3">
-        {/* Swap handle — only visible pre-tournament. Two-tap mechanic: first
-            tap on a row picks it up, second tap on a different row swaps. */}
-        {swapEnabled && (
-          <button onClick={onSwapHandle}
-            title={isSwapSource ? "Tap another slot to swap · Esc to cancel" : "Move this pick"}
-            className={`w-7 h-9 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSwapSource ? "" : "hover:bg-black/[0.05]"}`}
-            style={isSwapSource
-              ? { background: "var(--green)", color: "var(--bg-1)" }
-              : { color: "var(--dim)" }}>
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 3l-3 3 3 3M11 7l3 3-3 3M2 6h10M14 10H4"/>
-            </svg>
-          </button>
-        )}
         {/* Country chip — also doubles as the change button (no separate Change button) */}
         <button onClick={major.status === "upcoming" ? onClick : undefined}
           disabled={major.status !== "upcoming"}
@@ -6565,7 +6558,7 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
         {/* Name + score */}
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="font-semibold truncate text-sm sm:text-base">{g.name}</span>
+            <span className="font-semibold truncate text-base sm:text-lg">{g.name}</span>
             {!isIn && <span className="text-[10px] font-bold uppercase tracking-wider text-red">OUT</span>}
             {earn && <ScorePill status={earn.status} position={earn.position} />}
             {earn && <ScoreNum score={earn.score} status={earn.status} />}
@@ -6577,9 +6570,10 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
               {major.status === "complete" && <>final</>}
             </div>
           )}
-          {/* Next-round tee time — only visible between rounds, before the
-              next round tees off. Skip MC/WD players. */}
-          {nextTeeTime && !isMC && (
+          {/* Next-round tee time below the name — only during LIVE play
+              between rounds. Pre-tournament tee times surface in the right
+              column instead, so we don't double-render them. */}
+          {nextTeeTime && !isMC && major.status === "live" && (
             <div className="text-[11px] mt-0.5 inline-flex items-center gap-1.5 font-semibold"
               style={{ color: "var(--green)" }}>
               <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -6603,18 +6597,50 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
           </div>
         )}
 
-        {/* Total */}
+        {/* Right column — shows the most useful piece of info for the current
+            phase. Pre-tournament: R1 tee time (so users plan around Thursday).
+            Live/complete: earnings (or — placeholder until real money lands).
+            Bench rows during live still get the "uncounted" reminder. */}
         <div className="text-right shrink-0 w-20 sm:w-24">
-          <div className={`display-num font-bold text-lg sm:text-xl ${isMC ? "text-dim" : "text-green"}`}>
-            {total === null ? "—" : fmt(total)}
-          </div>
-          {role === "bench" && total > 0 && major.status !== "complete" && (
-            <div className="text-[10px] uppercase tracking-wider text-dim">uncounted</div>
+          {major.status === "upcoming" ? (
+            nextTeeTime ? (
+              <>
+                <div className="font-mono font-bold text-sm sm:text-base tabular-nums" style={{ color: "var(--green)" }}>
+                  {nextTeeTime.label}
+                </div>
+                <div className="text-[10px] uppercase tracking-wider text-dim">{nextRoundLabel || "R1"}</div>
+              </>
+            ) : (
+              <div className="text-[11px] text-dim italic">tee time TBD</div>
+            )
+          ) : (
+            <>
+              <div className={`display-num font-bold text-lg sm:text-xl ${isMC ? "text-dim" : "text-green"}`}>
+                {total === null ? "—" : fmt(total)}
+              </div>
+              {role === "bench" && total > 0 && major.status !== "complete" && (
+                <div className="text-[10px] uppercase tracking-wider text-dim">uncounted</div>
+              )}
+            </>
           )}
         </div>
 
-        {/* Action — only one button at a time, no double-action clutter */}
-        <div className="shrink-0">
+        {/* Action group — customization controls grouped together on the
+            right: swap handle (pre-tournament reorder) + the major-specific
+            action button (Sub in / Sub out / Lock icon / Remove). */}
+        <div className="shrink-0 flex items-center gap-1.5">
+          {swapEnabled && (
+            <button onClick={onSwapHandle}
+              title={isSwapSource ? "Tap another slot to swap · Esc to cancel" : "Move this pick"}
+              className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 transition-colors ${isSwapSource ? "" : "hover:bg-black/[0.05]"}`}
+              style={isSwapSource
+                ? { background: "var(--green)", color: "var(--bg-1)" }
+                : { color: "var(--dim)" }}>
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 3l-3 3 3 3M11 7l3 3-3 3M2 6h10M14 10H4"/>
+              </svg>
+            </button>
+          )}
           {canSub && (
             <button onClick={onSub} className="text-[12px] font-semibold rounded-md px-2.5 py-1.5 transition-colors whitespace-nowrap"
               style={{ color: "#074a23", background: "rgba(7, 74, 35, 0.18)", border: "1px solid rgba(7, 74, 35, 0.75)" }}>
