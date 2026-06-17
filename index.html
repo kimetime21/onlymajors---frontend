@@ -2370,6 +2370,14 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
         </div>
         <ClubChampionshipCard authedUser={authedUser} memberNumber={summary?.me?.memberNumber} />
 
+        {/* Caddie's Call — clubhouse-wide side game, 11 calls per major.
+            Sits directly below Club Championship with the same card shell. */}
+        <div id="ch-caddies-call" className="mt-10 mb-4 scroll-mt-20">
+          <h2 className="font-bold text-2xl tracking-tight">Caddie's Call</h2>
+          <p className="text-sm text-muted mt-0.5">Eleven calls per major — five tournament picks, five head-to-head matchups, one for your own team. Locks at first tee, scored Sunday.</p>
+        </div>
+        <CaddiesCallCard authedUser={authedUser} memberNumber={summary?.me?.memberNumber} />
+
         {/* Pro Shop section */}
         <div id="ch-proshop" className="mt-10 mb-4 scroll-mt-20">
           <h2 className="font-bold text-2xl tracking-tight">The Pro Shop</h2>
@@ -2884,6 +2892,10 @@ function ExploreClubhouseNav() {
       <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
         <path d="M5 2h6v3a3 3 0 0 1-6 0V2z"/><path d="M5 4H3v1a2 2 0 0 0 2 2"/><path d="M11 4h2v1a2 2 0 0 1-2 2"/>
         <path d="M8 8v3"/><path d="M5 14h6"/>
+      </svg>) },
+    { id: "ch-caddies-call", label: "Caddie's Call",     icon: (
+      <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 1.5"/>
       </svg>) },
     { id: "ch-proshop",      label: "The Pro Shop",      icon: (
       <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -5971,10 +5983,8 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
 }
 
 function ChatTab({ user, picks, messages, onSend, leagueId }) {
-  // Anchor major: live > upcoming > most recent. Drives Caddie's Call card.
-  const focusMajor = MAJORS.find(m => m.status === "live")
-                  || MAJORS.find(m => m.status === "upcoming")
-                  || MAJORS[MAJORS.length - 1];
+  // Caddie's Call has been promoted to a Clubhouse-wide card. The 19th
+  // Hole tab is now pure league chatter + league-scoped leaderboard.
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4" style={{ minHeight: "calc(100vh - 320px)" }}>
@@ -5985,103 +5995,189 @@ function ChatTab({ user, picks, messages, onSend, leagueId }) {
           <TourLeaderboardPanel picks={picks} user={user} leagueId={leagueId} />
         </div>
       </div>
-      <CaddiesCallCard majorId={focusMajor.id} majorShort={focusMajor.short} />
     </div>
   );
 }
 
-// Caddie's Call — 19th Hole side game. 5 props + 5 head-to-head matchups
-// per major. Locks at first tee. Stats boxes at top show career wins,
-// losses, Call Rate, and this-major answered progress. Always visible.
-function CaddiesCallCard({ majorId, majorShort }) {
-  const [loading, setLoading]     = useState(true);
-  const [data, setData]           = useState(null);
-  const [summary, setSummary]     = useState(null);
-  const [busy, setBusy]           = useState({});
-  const [err, setErr]             = useState("");
+// Caddie's Call — Clubhouse-wide side game, sits below Club Championship.
+// Mirrors the Club Championship card shell exactly: header + 4 stat boxes
+// + Hall of Fame dropdown + clubhouse-wide Averages dropdown + entry modal
+// + live tracking page. 5 tournament props + 5 head-to-head matchups + 1
+// personal-team call per major. Locks at first tee.
+function CaddiesCallCard({ authedUser, memberNumber }) {
+  const liveMajor   = MAJORS.find(m => m.status === "live");
+  const nextMajor   = MAJORS.find(m => m.status === "upcoming");
+  const focusMajor  = liveMajor || nextMajor || MAJORS[MAJORS.length - 1];
+  const majorId    = focusMajor.id;
+  const majorShort = focusMajor.short;
+  const [data,         setData]         = useState(null);
+  const [summary,      setSummary]      = useState(null);
+  const [hofOpen,      setHofOpen]      = useState(false);
+  const [avgOpen,      setAvgOpen]      = useState(false);
+  const [entryOpen,    setEntryOpen]    = useState(false);
+  const [livePageOpen, setLivePageOpen] = useState(false);
+  const [err,          setErr]          = useState("");
   const load = () => {
-    setLoading(true);
     authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}`, { cache: "no-store" })
       .then(r => r.json())
       .then(d => { setData(d); setErr(""); })
-      .catch(e => setErr(e.message))
-      .then(() => setLoading(false));
+      .catch(e => setErr(e.message));
     authFetch(`${ONLYMAJORS_API}/api/me/caddies-call/summary`, { cache: "no-store" })
       .then(r => r.json())
       .then(s => setSummary(s))
       .catch(() => {});
   };
   useEffect(() => { load(); }, [majorId]); // eslint-disable-line
-  const submit = (slot, answer) => {
-    setBusy(b => ({ ...b, [slot]: true }));
-    authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}/${slot}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answer }),
-    }).then(r => r.json())
-      .then(() => load())
-      .catch(e => setErr(e.message))
-      .then(() => setBusy(b => ({ ...b, [slot]: false })));
-  };
-  const questions = data?.questions || [];
-  const locked = data?.locksAt ? (new Date(data.locksAt) <= new Date()) : false;
+  const questions     = data?.questions || [];
+  const locked        = data?.locksAt ? (new Date(data.locksAt) <= new Date()) : false;
   const answeredCount = questions.filter(q => q.myAnswer).length;
-  const correct  = summary?.correct ?? 0;
-  const answered = summary?.answered ?? 0;
-  const losses   = Math.max(0, answered - correct);
-  const callRatePct = summary?.callRate != null
-    ? Math.round(summary.callRate * 100)
-    : null;
+  const totalQ        = questions.length || 11;
+  const correct       = summary?.correct  ?? 0;
+  const answered      = summary?.answered ?? 0;
+  const losses        = Math.max(0, answered - correct);
+  const callRatePct   = summary?.callRate != null ? Math.round(summary.callRate * 100) : null;
+  const hasQuestions  = questions.length > 0;
+  const allAnswered   = hasQuestions && answeredCount === totalQ;
+  const ctaLabel = locked
+    ? "View my card"
+    : !hasQuestions
+      ? `Drops ${focusMajor.picksOpenLabel || "Monday of tournament week"}`
+      : allAnswered
+        ? "Review my calls"
+        : answeredCount > 0
+          ? `Finish my calls · ${totalQ - answeredCount} left`
+          : "Make your calls";
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
-      <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-line">
-        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
-          <div>
-            <div className="font-bold text-base">Caddie's Call · {majorShort}</div>
-            <div className="text-[12px] text-dim mt-0.5">
-              {locked
-                ? `Locked at first tee · ${answeredCount}/${questions.length} submitted`
-                : questions.length === 0
-                  ? "Questions drop Monday of tournament week"
-                  : `Locks at first tee · ${answeredCount}/${questions.length} answered`}
+      {/* Body — matches Club Championship card spacing exactly. */}
+      <div className="p-5 sm:p-6 space-y-4">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 shrink-0 flex items-center justify-center">
+              <OnlyMajorsLogo size={48} full={true} />
+            </div>
+            <div className="min-w-0">
+              <div className="font-bold text-lg leading-tight">{majorShort} · Caddie's Call</div>
+              <div className="text-[12px] text-dim mt-0.5">
+                {locked
+                  ? "Card locked — tournament underway."
+                  : hasQuestions
+                    ? <>11 calls · locks at first tee · <span className="text-text font-semibold">{focusMajor.teeTimeLabel}</span></>
+                    : `Questions drop ${focusMajor.picksOpenLabel || "Monday of tournament week"}`}
+              </div>
             </div>
           </div>
+          {/* Live answered counter — chip sits top-right. */}
+          {hasQuestions && (
+            <div className="shrink-0 text-right leading-tight">
+              <div className="display-num font-bold text-xl" style={{ color: "var(--green)" }}>
+                {answeredCount}<span className="text-base text-dim font-semibold">/{totalQ}</span>
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-dim font-semibold">
+                answered
+              </div>
+            </div>
+          )}
         </div>
+        {/* Personal stats row — same 4 boxes the 19th-Hole card used. */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <CaddiesCallStat label="Wins" value={correct} accent="green" />
           <CaddiesCallStat label="Losses" value={losses} accent="muted" />
           <CaddiesCallStat label="Call Rate" value={callRatePct != null ? `${callRatePct}%` : "—"} accent="green" />
-          <CaddiesCallStat label={`${majorShort} answered`} value={`${answeredCount}/${questions.length || 11}`} accent="muted" />
+          <CaddiesCallStat label="Answered" value={answered} accent="muted" />
         </div>
-      </div>
-      <div className="px-4 sm:px-5 py-4 space-y-3">
-        {loading && <div className="text-[12px] text-dim text-center py-2">Loading…</div>}
-        {err && <div className="text-[12px] text-red">{err}</div>}
-        {!loading && questions.length === 0 && (
-          <div className="text-center py-3 text-[13px] text-dim leading-relaxed">
-            <div className="font-semibold text-muted mb-1">No questions yet</div>
-            <div>Caddie's Call drops the Monday of tournament week. 5 props + 5 head-to-head matchups, locks at first tee.</div>
-          </div>
+        <div className="text-sm text-muted leading-relaxed">
+          Eleven calls per major — five tournament picks, five head-to-head matchups, one for your own team. Locks at first tee. Scored Sunday and enshrined in the Hall of Fame.
+        </div>
+        <button
+          type="button"
+          disabled={!hasQuestions && !locked}
+          onClick={() => setEntryOpen(true)}
+          className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+          {ctaLabel}
+        </button>
+        {hasQuestions && answeredCount > 0 && (
+          <button type="button" onClick={() => setLivePageOpen(true)}
+            className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors flex items-center justify-center gap-1.5">
+            See my live card
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 4l4 4-4 4"/>
+            </svg>
+          </button>
         )}
-        {questions.map((q, i) => {
-          const prev = questions[i-1];
-          const sectionOf = (s) => s <= 5 ? "Props" : s <= 10 ? "Head-to-Head" : "Your Team";
-          const showHeader = i === 0 || (prev && sectionOf(prev.slot) !== sectionOf(q.slot));
-          const headerLabel = sectionOf(q.slot);
-          return (
-            <React.Fragment key={q.id}>
-              {showHeader && (
-                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-dim mt-1 mb-1">
-                  {headerLabel}
-                </div>
-              )}
-              <CaddiesCallQuestion question={q}
-                locked={locked} busy={!!busy[q.slot]}
-                onSubmit={(answer) => submit(q.slot, answer)} />
-            </React.Fragment>
-          );
-        })}
+        <div className="text-[11px] text-dim text-center">
+          {locked
+            ? "Live status updates each round · final scoring Sunday."
+            : hasQuestions
+              ? "Auto-saves on every pick · every member eligible."
+              : "Five props · five head-to-head · one personal call."}
+        </div>
+        {err && <div className="text-[11px] text-red text-center">{err}</div>}
       </div>
+
+      {/* Hall of Fame — same dropdown shell as Club Championship card. */}
+      <button onClick={() => setHofOpen(o => !o)}
+        className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-gold" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 2v3a4 4 0 008 0V2"/>
+            <path d="M2 2h12"/>
+            <path d="M6 14h4M8 11v3"/>
+            <path d="M4 5a2 2 0 01-2-2"/>
+            <path d="M12 5a2 2 0 002-2"/>
+          </svg>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">Hall of Fame</span>
+        </div>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${hofOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {hofOpen && (
+        <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
+          <CaddiesCallHallOfFame authedUser={authedUser} />
+        </div>
+      )}
+
+      {/* Caddie's Call averages — clubhouse-wide consensus per question. */}
+      <button onClick={() => setAvgOpen(o => !o)}
+        className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-green" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 14h12"/>
+            <rect x="3" y="8" width="2.5" height="5"/>
+            <rect x="6.75" y="5" width="2.5" height="8"/>
+            <rect x="10.5" y="2" width="2.5" height="11"/>
+          </svg>
+          <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">Caddie's Call averages</span>
+        </div>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${avgOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {avgOpen && (
+        <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in">
+          <CaddiesCallAverages majorId={majorId} majorShort={majorShort} />
+        </div>
+      )}
+
+      {entryOpen && (
+        <CaddiesCallEntryModal
+          majorId={majorId}
+          majorShort={majorShort}
+          data={data}
+          onSubmitted={load}
+          onClose={() => setEntryOpen(false)} />
+      )}
+      {livePageOpen && (
+        <CaddiesCallLivePage
+          majorId={majorId}
+          focusMajor={focusMajor}
+          data={data}
+          summary={summary}
+          authedUser={authedUser}
+          onClose={() => setLivePageOpen(false)} />
+      )}
     </div>
   );
 }
@@ -6097,6 +6193,380 @@ function CaddiesCallStat({ label, value, accent }) {
         {label}
       </div>
     </div>
+  );
+}
+
+// Entry modal — portal + body-scroll-lock, same pattern as the Club
+// Championship entry modal. Lists all 11 questions; auto-saves each pick.
+function CaddiesCallEntryModal({ majorId, majorShort, data, onSubmitted, onClose }) {
+  const [busy, setBusy] = useState({});
+  const [err,  setErr]  = useState("");
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  const questions = data?.questions || [];
+  const locked = data?.locksAt ? (new Date(data.locksAt) <= new Date()) : false;
+  const answeredCount = questions.filter(q => q.myAnswer).length;
+  const submit = (slot, answer) => {
+    setBusy(b => ({ ...b, [slot]: true }));
+    authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}/${slot}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer }),
+    }).then(r => r.json())
+      .then(() => onSubmitted && onSubmitted())
+      .catch(e => setErr(e.message))
+      .then(() => setBusy(b => ({ ...b, [slot]: false })));
+  };
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-start sm:items-center justify-center px-3 py-4"
+      style={{ background: "rgba(15,25,18,0.55)" }}
+      onClick={onClose}>
+      <div className="w-full max-w-2xl bg-white rounded-2xl border border-line shadow-2xl overflow-hidden fade-in"
+        onClick={e => e.stopPropagation()}>
+        <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-line">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold">Caddie's Call</div>
+              <div className="font-bold text-xl tracking-tight mt-0.5">{majorShort} 2026</div>
+              <div className="text-[12px] text-dim mt-1">
+                {locked
+                  ? `Locked at first tee · ${answeredCount}/${questions.length} submitted`
+                  : `Locks at first tee · ${answeredCount}/${questions.length} answered`}
+              </div>
+            </div>
+            <button onClick={onClose}
+              className="text-dim hover:text-text shrink-0 p-1"
+              aria-label="Close">
+              <svg viewBox="0 0 16 16" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 4l8 8M12 4l-8 8"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div className="px-5 sm:px-6 py-4 space-y-3 max-h-[70vh] overflow-y-auto">
+          {err && <div className="text-[12px] text-red">{err}</div>}
+          {questions.length === 0 && (
+            <div className="text-center py-6 text-[13px] text-dim leading-relaxed">
+              <div className="font-semibold text-muted mb-1">No questions yet</div>
+              <div>Caddie's Call drops the Monday of tournament week.</div>
+            </div>
+          )}
+          {questions.map((q, i) => {
+            const prev = questions[i-1];
+            const sectionOf = (s) => s <= 5 ? null : s <= 10 ? "Head-to-Head" : "Your Team";
+            const thisLabel = sectionOf(q.slot);
+            const prevLabel = prev ? sectionOf(prev.slot) : null;
+            const showHeader = thisLabel != null && thisLabel !== prevLabel;
+            return (
+              <React.Fragment key={q.id}>
+                {showHeader && (
+                  <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-dim mt-2 mb-1">
+                    {thisLabel}
+                  </div>
+                )}
+                <CaddiesCallQuestion question={q}
+                  locked={locked} busy={!!busy[q.slot]}
+                  onSubmit={(answer) => submit(q.slot, answer)} />
+              </React.Fragment>
+            );
+          })}
+        </div>
+        <div className="border-t border-line bg-bg2/30 px-5 sm:px-6 py-3 flex items-center justify-between">
+          <div className="text-[11px] text-dim">
+            {locked ? "Locked · scoring Sunday" : "Auto-saves on every pick"}
+          </div>
+          <button onClick={onClose}
+            className="text-[12px] font-semibold text-text hover:text-muted">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Hall of Fame list — clubhouse-wide top callers by Call Rate + total wins.
+function CaddiesCallHallOfFame({ authedUser }) {
+  const [data, setData] = useState(null);
+  const [err,  setErr]  = useState(null);
+  useEffect(() => {
+    authFetch(`${ONLYMAJORS_API}/api/caddies-call/hall-of-fame`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => setData(d))
+      .catch(e => setErr(e.message));
+  }, []);
+  const youId = authedUser?.id ? Number(authedUser.id) : null;
+  if (err)   return <div className="text-[12px] text-dim text-center py-4">Couldn't load Hall of Fame.</div>;
+  if (!data) return <div className="text-[12px] text-dim text-center py-4">Loading Hall of Fame…</div>;
+  const callRate = data.topCallRate || [];
+  const wins     = data.topWins     || [];
+  if (callRate.length === 0) {
+    return (
+      <div className="text-center py-6">
+        <div className="text-sm font-semibold text-muted mb-1">Hall awaits its first inductees</div>
+        <div className="text-[12px] text-dim leading-relaxed max-w-xs mx-auto">
+          Answer five Caddie's Call questions to qualify. The U.S. Open's results will seed the leaderboard.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
+          Top Call Rate · min {data.minAnswered} answered
+        </div>
+        <div className="space-y-0">
+          {callRate.slice(0, 5).map((r, i) => (
+            <div key={r.userId} className="flex items-center gap-3 py-1.5 px-2 border-b border-line last:border-0"
+              style={r.userId === youId ? { background: "rgba(43,69,53,0.06)" } : {}}>
+              <div className="w-6 text-[12px] text-dim font-semibold text-right">{i + 1}</div>
+              <div className="flex-1 text-sm font-semibold truncate">
+                {r.name}
+                {r.userId === youId && <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>}
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-bold" style={{ color: "var(--green)" }}>{r.callRate}%</div>
+                <div className="text-[10px] text-dim">{r.correct}/{r.answered}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">Most Wins</div>
+        <div className="space-y-0">
+          {wins.slice(0, 5).map((r, i) => (
+            <div key={r.userId} className="flex items-center gap-3 py-1.5 px-2 border-b border-line last:border-0"
+              style={r.userId === youId ? { background: "rgba(43,69,53,0.06)" } : {}}>
+              <div className="w-6 text-[12px] text-dim font-semibold text-right">{i + 1}</div>
+              <div className="flex-1 text-sm font-semibold truncate">
+                {r.name}
+                {r.userId === youId && <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>}
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-bold" style={{ color: "var(--green)" }}>{r.correct}</div>
+                <div className="text-[10px] text-dim">{r.majorsPlayed} {r.majorsPlayed === 1 ? "major" : "majors"}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Clubhouse-wide consensus on every question of the current major.
+function CaddiesCallAverages({ majorId, majorShort }) {
+  const [data, setData] = useState(null);
+  const [err,  setErr]  = useState(null);
+  useEffect(() => {
+    authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}/averages`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => setData(d))
+      .catch(e => setErr(e.message));
+  }, [majorId]);
+  if (err)   return <div className="text-[12px] text-dim text-center py-4">Couldn't load averages.</div>;
+  if (!data) return <div className="text-[12px] text-dim text-center py-4">Loading averages…</div>;
+  const questions = data.questions || [];
+  if (questions.length === 0 || data.totalSubmitters === 0) {
+    return (
+      <div className="text-center py-6">
+        <div className="text-sm font-semibold text-muted mb-1">No calls yet</div>
+        <div className="text-[12px] text-dim leading-relaxed max-w-xs mx-auto">
+          Once members start locking in, the clubhouse consensus on every question will show here.
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="text-[11px] uppercase tracking-wider text-dim font-semibold">
+        Clubhouse consensus · {data.totalSubmitters} {data.totalSubmitters === 1 ? "member" : "members"}
+      </div>
+      {questions.map(q => (
+        <div key={q.id} className="rounded-lg border border-line bg-white px-3 py-2.5">
+          <div className="text-[12px] font-semibold text-text mb-2 flex items-baseline gap-2">
+            <span className="text-[10px] uppercase tracking-wider text-dim font-bold shrink-0">Q{q.slot}</span>
+            <span className="leading-snug">{q.questionText}</span>
+          </div>
+          {q.totalAnswers === 0 ? (
+            <div className="text-[11px] text-dim italic">No picks yet</div>
+          ) : q.type === "player_pick" ? (
+            <div className="text-[11px] text-dim">
+              {q.totalAnswers} {q.totalAnswers === 1 ? "member" : "members"} answered · top picks revealed in results
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {q.options.map(o => (
+                <div key={o.key} className="flex items-center gap-2 text-[12px]">
+                  <div className="w-24 sm:w-32 truncate text-muted">{o.label}</div>
+                  <div className="flex-1 h-2 rounded-full bg-bg2 overflow-hidden">
+                    <div className="h-full rounded-full"
+                      style={{ width: `${o.pct}%`, background: "var(--green)" }}/>
+                  </div>
+                  <div className="w-12 text-right tabular-nums text-text font-semibold">
+                    {o.pct}%
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Live tracking page — full-screen portal, same chrome as Club Championship
+// live page. Shows the user's 11 calls with section dividers + per-pick
+// status (pending / win / loss after Sunday scoring).
+function CaddiesCallLivePage({ majorId, focusMajor, data, summary, authedUser, onClose }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  const questions     = data?.questions || [];
+  const answeredCount = questions.filter(q => q.myAnswer).length;
+  const scoredCount   = questions.filter(q => q.scoredAt).length;
+  const wins          = questions.filter(q => q.scoredAt && q.correctAnswer === q.myAnswer).length;
+  const callRate      = scoredCount > 0 ? Math.round((wins / scoredCount) * 100) : null;
+  const youName       = authedUser?.firstName || authedUser?.displayName?.split(/[\s@]/)[0] || "You";
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 z-50 overflow-y-auto"
+      style={{ background: "var(--bg-1, #f5f1e8)" }}>
+      <header className="sticky top-0 z-10 backdrop-blur border-b border-line"
+        style={{ background: "var(--bg-1, #f5f1e8)" }}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3">
+          <BrandedHeaderRow
+            title="Caddie's Call"
+            subtitle={`${focusMajor.short} 2026`}
+            onClick={onClose}
+            right={
+              <span className="text-[11px] uppercase tracking-[0.18em] font-semibold px-2 py-1 rounded"
+                style={{ background: "var(--green)", color: "var(--bg-1)" }}>Live</span>
+            }
+          />
+        </div>
+      </header>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4 fade-in space-y-5">
+        <div className="mb-1">
+          <BackToClubhousePill onClick={onClose} />
+        </div>
+        {/* Status banner — mirrors Club Championship live page banner */}
+        <div className="rounded-2xl border border-line-2 overflow-hidden"
+          style={{ background: "linear-gradient(135deg, rgba(43,69,53,0.92), rgba(43,69,53,0.78))", color: "var(--bg-1)" }}>
+          <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div className="w-14 h-14 shrink-0 flex items-center justify-center">
+                <OnlyMajorsLogo size={56} cream={true} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] font-semibold opacity-80">
+                  <span className="w-1.5 h-1.5 bg-red-300 rounded-full live-dot"/>
+                  {focusMajor.status === "live" ? "Tournament underway" : "Pre-tournament"}
+                </div>
+                <div className="font-bold text-xl tracking-tight mt-0.5">{youName}'s card</div>
+                <div className="text-[12px] opacity-80 mt-0.5">{focusMajor.short} 2026 · {focusMajor.course || ""}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="text-center">
+                <div className="display-num font-bold text-2xl">{answeredCount}<span className="text-base opacity-60">/{questions.length}</span></div>
+                <div className="text-[10px] uppercase tracking-[0.18em] opacity-80 font-semibold">Locked in</div>
+              </div>
+              <div className="text-center">
+                <div className="display-num font-bold text-2xl">{wins}<span className="text-base opacity-60">/{scoredCount || "—"}</span></div>
+                <div className="text-[10px] uppercase tracking-[0.18em] opacity-80 font-semibold">Wins</div>
+              </div>
+              <div className="text-center">
+                <div className="display-num font-bold text-2xl">{callRate != null ? `${callRate}%` : "—"}</div>
+                <div className="text-[10px] uppercase tracking-[0.18em] opacity-80 font-semibold">Call rate</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Card */}
+        <div className="rounded-2xl border border-line bg-white p-4 sm:p-5 space-y-2">
+          {questions.length === 0 && (
+            <div className="text-[13px] text-dim text-center py-6">
+              No calls submitted yet.
+            </div>
+          )}
+          {questions.map((q, i) => {
+            const prev = questions[i-1];
+            const sectionOf = (s) => s <= 5 ? "Tournament" : s <= 10 ? "Head-to-Head" : "Your Team";
+            const showHeader = i === 0 || sectionOf(prev.slot) !== sectionOf(q.slot);
+            const youKey = q.myAnswer;
+            const youOpt = q.options?.find(o => o.key === youKey);
+            const scored = q.scoredAt && q.correctAnswer;
+            const correct = scored && q.correctAnswer === youKey;
+            const isH2H = q.slot >= 6 && q.slot <= 10;
+            return (
+              <React.Fragment key={q.id}>
+                {showHeader && (
+                  <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-dim mt-3 mb-1 first:mt-0">
+                    {sectionOf(q.slot)}
+                  </div>
+                )}
+                <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2.5">
+                  <div className="text-[12px] font-semibold text-text mb-1.5 flex items-baseline gap-2">
+                    <span className="text-[10px] uppercase tracking-wider text-dim font-bold shrink-0">Q{q.slot}</span>
+                    <span className="leading-snug">{q.questionText}</span>
+                  </div>
+                  {isH2H && q.options?.length >= 2 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-2 text-[11px]">
+                      {q.options.map((o, idx) => (
+                        <React.Fragment key={o.key}>
+                          {idx > 0 && <span className="text-dim font-semibold">vs</span>}
+                          <span className="px-2 py-0.5 rounded font-semibold"
+                            style={o.key === youKey
+                              ? { background: "var(--green)", color: "var(--bg-1)" }
+                              : { background: "white", color: "var(--muted)", border: "1px solid var(--line-2)" }}>
+                            {o.label}
+                          </span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[13px] min-w-0 truncate">
+                      {youKey ? (
+                        <>
+                          <span className="text-[10px] uppercase tracking-wider text-dim font-semibold mr-2">Your call</span>
+                          <span className="font-bold text-text">{youOpt?.label || youKey}</span>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-dim italic">No call submitted</span>
+                      )}
+                    </div>
+                    {scored ? (
+                      <span className="text-[10px] uppercase tracking-[0.18em] font-bold px-2 py-1 rounded shrink-0"
+                        style={correct
+                          ? { background: "var(--green)", color: "var(--bg-1)" }
+                          : { background: "rgba(180,40,40,0.15)", color: "rgb(180,40,40)" }}>
+                        {correct ? "Win" : "Loss"}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim shrink-0">Pending</span>
+                    )}
+                  </div>
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        <div className="text-[12px] text-dim text-center pb-8 leading-relaxed">
+          Live H2H scoring rolls in after each round wraps. All calls scored Sunday and added to your career Call Rate.
+        </div>
+      </main>
+    </div>,
+    document.body
   );
 }
 
