@@ -5971,14 +5971,142 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
 }
 
 function ChatTab({ user, picks, messages, onSend, leagueId }) {
+  // Anchor major: live > upcoming > most recent. Drives Caddie's Call card.
+  const focusMajor = MAJORS.find(m => m.status === "live")
+                  || MAJORS.find(m => m.status === "upcoming")
+                  || MAJORS[MAJORS.length - 1];
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-4" style={{ minHeight: "calc(100vh - 200px)" }}>
-      <div className="lg:col-span-3 flex flex-col" style={{ maxHeight: "calc(100vh - 200px)" }}>
-        <ChatPanel user={user} messages={messages} onSend={onSend} />
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4" style={{ minHeight: "calc(100vh - 320px)" }}>
+        <div className="lg:col-span-3 flex flex-col" style={{ maxHeight: "calc(100vh - 320px)" }}>
+          <ChatPanel user={user} messages={messages} onSend={onSend} />
+        </div>
+        <div className="lg:col-span-2 flex flex-col" style={{ maxHeight: "calc(100vh - 320px)" }}>
+          <TourLeaderboardPanel picks={picks} user={user} leagueId={leagueId} />
+        </div>
       </div>
-      <div className="lg:col-span-2 flex flex-col" style={{ maxHeight: "calc(100vh - 200px)" }}>
-        <TourLeaderboardPanel picks={picks} user={user} leagueId={leagueId} />
+      <CaddiesCallCard majorId={focusMajor.id} majorShort={focusMajor.short} />
+    </div>
+  );
+}
+
+// Caddie's Call — 19th Hole side game. 5 prop questions auto-generated per
+// major. Locks at first tee. Phase 1 ship: fetches and displays questions
+// if they've been seeded, submits answers, shows locked state. No frontend
+// scoring; results computed server-side post-tournament.
+function CaddiesCallCard({ majorId, majorShort }) {
+  const [open, setOpen]           = useState(false);
+  const [loading, setLoading]     = useState(true);
+  const [data, setData]           = useState(null);
+  const [busy, setBusy]           = useState({});
+  const [err, setErr]             = useState("");
+  const load = () => {
+    setLoading(true);
+    authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(d => { setData(d); setErr(""); })
+      .catch(e => setErr(e.message))
+      .then(() => setLoading(false));
+  };
+  useEffect(() => { load(); }, [majorId]); // eslint-disable-line
+  const submit = (slot, answer) => {
+    setBusy(b => ({ ...b, [slot]: true }));
+    authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}/${slot}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answer }),
+    }).then(r => r.json())
+      .then(() => load())
+      .catch(e => setErr(e.message))
+      .then(() => setBusy(b => ({ ...b, [slot]: false })));
+  };
+  const questions = data?.questions || [];
+  const locked = data?.locksAt ? (new Date(data.locksAt) <= new Date()) : false;
+  const answeredCount = questions.filter(q => q.myAnswer).length;
+  return (
+    <div className="rounded-2xl border border-line bg-white overflow-hidden">
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full px-4 sm:px-5 py-3 flex items-center justify-between hover:bg-black/[0.02] transition-colors">
+        <div className="text-left">
+          <div className="font-bold text-base">Caddie's Call · {majorShort}</div>
+          <div className="text-[12px] text-dim mt-0.5">
+            {locked
+              ? `Locked · ${answeredCount}/${questions.length} submitted`
+              : questions.length === 0
+                ? "Questions drop Monday of tournament week"
+                : `${answeredCount}/${questions.length} answered · locks at first tee`}
+          </div>
+        </div>
+        <svg viewBox="0 0 24 24" className={`w-4 h-4 text-dim transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-line px-4 sm:px-5 py-4 space-y-4">
+          {loading && <div className="text-[12px] text-dim text-center py-2">Loading…</div>}
+          {err && <div className="text-[12px] text-red">{err}</div>}
+          {!loading && questions.length === 0 && (
+            <div className="text-center py-3 text-[13px] text-dim leading-relaxed">
+              <div className="font-semibold text-muted mb-1">No questions yet</div>
+              <div>Caddie's Call goes live for The Open in July. Make 5 picks per major, track your Call Rate.</div>
+            </div>
+          )}
+          {questions.map(q => (
+            <CaddiesCallQuestion key={q.id} question={q}
+              locked={locked} busy={!!busy[q.slot]}
+              onSubmit={(answer) => submit(q.slot, answer)} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CaddiesCallQuestion({ question, locked, busy, onSubmit }) {
+  const [draft, setDraft] = useState(question.myAnswer || "");
+  useEffect(() => { setDraft(question.myAnswer || ""); }, [question.myAnswer]);
+  const onPick = (key) => {
+    if (locked || busy) return;
+    setDraft(key);
+    onSubmit(key);
+  };
+  const opts = question.options || [];
+  return (
+    <div className="rounded-lg border border-line bg-bg2/40 px-3 py-3">
+      <div className="text-[13px] font-semibold text-text mb-2 flex items-baseline gap-2">
+        <span className="text-[10px] uppercase tracking-wider text-dim font-bold">Q{question.slot}</span>
+        <span>{question.questionText}</span>
       </div>
+      {question.type === "player_pick" ? (
+        <select value={draft} onChange={e => onPick(e.target.value)} disabled={locked || busy}
+          className="w-full text-sm bg-white border border-line-2 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-green/30 disabled:opacity-60">
+          <option value="">Choose a player…</option>
+          {opts.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+        </select>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {opts.map(o => {
+            const sel = draft === o.key;
+            return (
+              <button key={o.key} onClick={() => onPick(o.key)} disabled={locked || busy}
+                className={`text-[12px] font-semibold rounded-md px-3 py-1.5 transition-colors disabled:opacity-60 ${sel ? "" : "hover:bg-black/[0.04]"}`}
+                style={sel
+                  ? { background: "var(--green)", color: "var(--bg-1)", border: "1px solid var(--green)" }
+                  : { background: "white", color: "var(--text)", border: "1px solid var(--line-2)" }}>
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {question.scoredAt && question.correctAnswer && (
+        <div className="mt-2 text-[11px] text-dim">
+          {question.type === "player_pick"
+            ? "Top-10 finishers revealed in results"
+            : <>Correct: <span className="font-semibold text-text">{opts.find(o => o.key === question.correctAnswer)?.label || question.correctAnswer}</span></>}
+        </div>
+      )}
     </div>
   );
 }
