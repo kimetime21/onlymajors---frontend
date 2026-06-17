@@ -6071,6 +6071,22 @@ function TourLeaderboardPanel({ picks, user, leagueId }) {
     || MAJORS.find(m => m.status === "upcoming" && arePicksOpen(m))
     || MAJORS.find(m => m.status === "upcoming" && daysUntilLock(m) <= 7)
     || MAJORS[1];
+  const isPreTournament = live.status === "upcoming";
+
+  // Pre-tournament: fetch the field + R1 tee times so we can show the field
+  // sorted by tee time. Once real live data arrives in EARN, that takes over.
+  const [teeTimes, setTeeTimes]       = useState({});
+  const [fieldPlayers, setFieldPlayers] = useState([]);
+  useEffect(() => {
+    if (!isPreTournament) return;
+    let cancelled = false;
+    fetch(`${ONLYMAJORS_API}/api/tee-times/${live.id}/1`).then(r => r.json())
+      .then(d => { if (!cancelled) setTeeTimes(d?.times || {}); }).catch(() => {});
+    fetch(`${ONLYMAJORS_API}/api/field/${live.id}`).then(r => r.json())
+      .then(d => { if (!cancelled) setFieldPlayers(d?.players || []); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isPreTournament, live.id]);
+
   const ownership = useMemo(() => {
     const map = {};
     for (const t of teamsForLeague(leagueId)) {
@@ -6082,6 +6098,31 @@ function TourLeaderboardPanel({ picks, user, leagueId }) {
     }
     return map;
   }, [picks, live.id, leagueId]);
+
+  // Pre-tournament player list — every golfer with a tee time, sorted by it
+  // ascending. 10th-tee starts get an * marker. As the tournament progresses
+  // and EARN populates, that view takes precedence.
+  const preTournamentPlayers = useMemo(() => {
+    if (!isPreTournament) return [];
+    return fieldPlayers
+      .map(p => ({
+        gid:        p.gid,
+        name:       p.name,
+        country:    p.country,
+        teeTime:    teeTimes[p.gid] || null,
+      }))
+      .filter(p => {
+        if (filter === "mine")   return (ownership[p.gid] || []).some(t => t.id === user.id);
+        if (filter === "league") return (ownership[p.gid] || []).length > 0;
+        return true;
+      })
+      .sort((a, b) => {
+        // Players without tee times go to the bottom; otherwise earliest first.
+        const aMs = a.teeTime?.iso ? new Date(a.teeTime.iso).getTime() : Infinity;
+        const bMs = b.teeTime?.iso ? new Date(b.teeTime.iso).getTime() : Infinity;
+        return aMs - bMs;
+      });
+  }, [isPreTournament, fieldPlayers, teeTimes, filter, ownership, user.id]);
 
   const players = useMemo(() => {
     return Object.entries(EARN[live.id] || {})
@@ -6099,7 +6140,9 @@ function TourLeaderboardPanel({ picks, user, leagueId }) {
       });
   }, [live.id, ownership, filter, user.id]);
 
-  const totalCount = Object.keys(EARN[live.id] || {}).length;
+  const totalCount = isPreTournament
+    ? preTournamentPlayers.length
+    : Object.keys(EARN[live.id] || {}).length;
 
   const FilterButton = ({ value, label }) => (
     <button onClick={() => setFilter(value)}
@@ -6114,11 +6157,23 @@ function TourLeaderboardPanel({ picks, user, leagueId }) {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="font-bold text-base">{live.name}</h3>
-            <div className="text-[12px] text-dim">{live.course} · R{live.currentRound || 1} · {totalCount} in field</div>
+            <div className="text-[12px] text-dim">
+              {isPreTournament
+                ? <>{live.course} · R1 tee times · {totalCount} {totalCount === 1 ? "player" : "players"}</>
+                : <>{live.course} · R{live.currentRound || 1} · {totalCount} in field</>}
+            </div>
           </div>
-          <span className="text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-red-500/10 text-red border border-red-500/30 inline-flex items-center gap-1">
-            <span className="live-dot w-1.5 h-1.5 bg-red-500 rounded-full inline-block"/>Live
-          </span>
+          {isPreTournament ? (
+            <span className="text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded inline-flex items-center gap-1"
+              style={{ background: "rgba(43,69,53,0.10)", color: "var(--green)", border: "1px solid rgba(43,69,53,0.35)" }}>
+              <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: "var(--green)" }}/>
+              Pre-tournament
+            </span>
+          ) : (
+            <span className="text-[11px] uppercase tracking-wider font-bold px-2 py-0.5 rounded bg-red-500/10 text-red border border-red-500/30 inline-flex items-center gap-1">
+              <span className="live-dot w-1.5 h-1.5 bg-red-500 rounded-full inline-block"/>Live
+            </span>
+          )}
         </div>
         <div className="mt-2 flex items-center gap-1.5 text-[12px]">
           <FilterButton value="all"    label="All players" />
@@ -6127,16 +6182,25 @@ function TourLeaderboardPanel({ picks, user, leagueId }) {
         </div>
       </header>
       <div className="flex-1 overflow-y-auto">
-        {players.length === 0 && totalCount === 0 && (
+        {isPreTournament && preTournamentPlayers.length === 0 && (
           <div className="p-6 text-center text-sm text-muted">
-            <div className="font-semibold text-text mb-1">No live data yet</div>
-            <div className="text-xs">Backend scraper of <span className="text-text">{LIVE_SOURCES[live.id]?.name}</span> hasn't populated this tournament's scores.</div>
+            <div className="font-semibold text-text mb-1">Tee times not published yet</div>
+            <div className="text-xs">Pairings drop the afternoon before R1 starts. Check back closer to first tee.</div>
           </div>
         )}
-        {players.length === 0 && totalCount > 0 && (
+        {isPreTournament && preTournamentPlayers.map(p => (
+          <PreTournamentRow key={p.gid} player={p} owners={ownership[p.gid] || []} />
+        ))}
+        {!isPreTournament && players.length === 0 && totalCount === 0 && (
+          <div className="p-6 text-center text-sm text-muted">
+            <div className="font-semibold text-text mb-1">No live data yet</div>
+            <div className="text-xs">DataGolf hasn't populated this round's scores yet — usually within a few minutes of first tee.</div>
+          </div>
+        )}
+        {!isPreTournament && players.length === 0 && totalCount > 0 && (
           <div className="p-6 text-center text-sm text-dim">No players match this filter.</div>
         )}
-        {players.map(p => <TourPlayerRow key={p.gid} player={p} owners={ownership[p.gid] || []} youId={user.id} majorId={live.id} />)}
+        {!isPreTournament && players.map(p => <TourPlayerRow key={p.gid} player={p} owners={ownership[p.gid] || []} youId={user.id} majorId={live.id} />)}
       </div>
       <div className="px-4 py-2 border-t border-line text-[11px] text-dim flex items-center gap-2">
         <span className="flex -space-x-1">
@@ -6144,6 +6208,36 @@ function TourLeaderboardPanel({ picks, user, leagueId }) {
         </span>
         Colored dots = league members with that golfer rostered
       </div>
+    </div>
+  );
+}
+
+// Pre-tournament row — shows tee time, name, country, and an * marker for
+// 10th-tee starts (standard golf convention). Owners get the colored dots.
+function PreTournamentRow({ player, owners }) {
+  const known = G[player.gid];
+  const name  = known?.name || player.name;
+  const country = known?.country || player.country;
+  const tt = player.teeTime;
+  const starMarker = tt?.startHole === 10 ? "*" : "";
+  return (
+    <div className="px-4 py-2 border-b border-line/60 flex items-center gap-3">
+      <div className="w-16 shrink-0 text-right">
+        <div className="font-mono font-semibold text-sm tabular-nums" style={{ color: tt ? "var(--green)" : "var(--dim)" }}>
+          {tt ? tt.label.replace(" ET", "") : "—"}
+          {starMarker && <span className="text-dim ml-0.5">{starMarker}</span>}
+        </div>
+        <div className="text-[10px] uppercase tracking-wider text-dim">{tt?.wave || ""}</div>
+      </div>
+      <CountryCode code={country} className="w-9 shrink-0"/>
+      <div className="flex-1 min-w-0 font-medium text-sm truncate">{name}</div>
+      {owners.length > 0 && (
+        <div className="flex -space-x-1 shrink-0">
+          {owners.slice(0, 6).map(t => (
+            <span key={t.id} className="w-2.5 h-2.5 rounded-full border border-white" style={{ background: t.color }}/>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
