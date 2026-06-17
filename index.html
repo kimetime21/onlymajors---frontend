@@ -5990,14 +5990,13 @@ function ChatTab({ user, picks, messages, onSend, leagueId }) {
   );
 }
 
-// Caddie's Call — 19th Hole side game. 5 prop questions auto-generated per
-// major. Locks at first tee. Phase 1 ship: fetches and displays questions
-// if they've been seeded, submits answers, shows locked state. No frontend
-// scoring; results computed server-side post-tournament.
+// Caddie's Call — 19th Hole side game. 5 props + 5 head-to-head matchups
+// per major. Locks at first tee. Stats boxes at top show career wins,
+// losses, Call Rate, and this-major answered progress. Always visible.
 function CaddiesCallCard({ majorId, majorShort }) {
-  const [open, setOpen]           = useState(false);
   const [loading, setLoading]     = useState(true);
   const [data, setData]           = useState(null);
+  const [summary, setSummary]     = useState(null);
   const [busy, setBusy]           = useState({});
   const [err, setErr]             = useState("");
   const load = () => {
@@ -6007,6 +6006,10 @@ function CaddiesCallCard({ majorId, majorShort }) {
       .then(d => { setData(d); setErr(""); })
       .catch(e => setErr(e.message))
       .then(() => setLoading(false));
+    authFetch(`${ONLYMAJORS_API}/api/me/caddies-call/summary`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(s => setSummary(s))
+      .catch(() => {});
   };
   useEffect(() => { load(); }, [majorId]); // eslint-disable-line
   const submit = (slot, answer) => {
@@ -6023,42 +6026,76 @@ function CaddiesCallCard({ majorId, majorShort }) {
   const questions = data?.questions || [];
   const locked = data?.locksAt ? (new Date(data.locksAt) <= new Date()) : false;
   const answeredCount = questions.filter(q => q.myAnswer).length;
+  const correct  = summary?.correct ?? 0;
+  const answered = summary?.answered ?? 0;
+  const losses   = Math.max(0, answered - correct);
+  const callRatePct = summary?.callRate != null
+    ? Math.round(summary.callRate * 100)
+    : null;
   return (
     <div className="rounded-2xl border border-line bg-white overflow-hidden">
-      <button onClick={() => setOpen(o => !o)}
-        className="w-full px-4 sm:px-5 py-3 flex items-center justify-between hover:bg-black/[0.02] transition-colors">
-        <div className="text-left">
-          <div className="font-bold text-base">Caddie's Call · {majorShort}</div>
-          <div className="text-[12px] text-dim mt-0.5">
-            {locked
-              ? `Locked · ${answeredCount}/${questions.length} submitted`
-              : questions.length === 0
-                ? "Questions drop Monday of tournament week"
-                : `${answeredCount}/${questions.length} answered · locks at first tee`}
+      <div className="px-4 sm:px-5 pt-4 pb-3 border-b border-line">
+        <div className="flex items-baseline justify-between gap-3 flex-wrap mb-3">
+          <div>
+            <div className="font-bold text-base">Caddie's Call · {majorShort}</div>
+            <div className="text-[12px] text-dim mt-0.5">
+              {locked
+                ? `Locked at first tee · ${answeredCount}/${questions.length} submitted`
+                : questions.length === 0
+                  ? "Questions drop Monday of tournament week"
+                  : `Locks at first tee · ${answeredCount}/${questions.length} answered`}
+            </div>
           </div>
         </div>
-        <svg viewBox="0 0 24 24" className={`w-4 h-4 text-dim transition-transform ${open ? "rotate-180" : ""}`}
-          fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="6 9 12 15 18 9"/>
-        </svg>
-      </button>
-      {open && (
-        <div className="border-t border-line px-4 sm:px-5 py-4 space-y-4">
-          {loading && <div className="text-[12px] text-dim text-center py-2">Loading…</div>}
-          {err && <div className="text-[12px] text-red">{err}</div>}
-          {!loading && questions.length === 0 && (
-            <div className="text-center py-3 text-[13px] text-dim leading-relaxed">
-              <div className="font-semibold text-muted mb-1">No questions yet</div>
-              <div>Caddie's Call goes live for The Open in July. Make 5 picks per major, track your Call Rate.</div>
-            </div>
-          )}
-          {questions.map(q => (
-            <CaddiesCallQuestion key={q.id} question={q}
-              locked={locked} busy={!!busy[q.slot]}
-              onSubmit={(answer) => submit(q.slot, answer)} />
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+          <CaddiesCallStat label="Wins" value={correct} accent="green" />
+          <CaddiesCallStat label="Losses" value={losses} accent="muted" />
+          <CaddiesCallStat label="Call Rate" value={callRatePct != null ? `${callRatePct}%` : "—"} accent="green" />
+          <CaddiesCallStat label={`${majorShort} answered`} value={`${answeredCount}/${questions.length || 11}`} accent="muted" />
         </div>
-      )}
+      </div>
+      <div className="px-4 sm:px-5 py-4 space-y-3">
+        {loading && <div className="text-[12px] text-dim text-center py-2">Loading…</div>}
+        {err && <div className="text-[12px] text-red">{err}</div>}
+        {!loading && questions.length === 0 && (
+          <div className="text-center py-3 text-[13px] text-dim leading-relaxed">
+            <div className="font-semibold text-muted mb-1">No questions yet</div>
+            <div>Caddie's Call drops the Monday of tournament week. 5 props + 5 head-to-head matchups, locks at first tee.</div>
+          </div>
+        )}
+        {questions.map((q, i) => {
+          const prev = questions[i-1];
+          const sectionOf = (s) => s <= 5 ? "Props" : s <= 10 ? "Head-to-Head" : "Your Team";
+          const showHeader = i === 0 || (prev && sectionOf(prev.slot) !== sectionOf(q.slot));
+          const headerLabel = sectionOf(q.slot);
+          return (
+            <React.Fragment key={q.id}>
+              {showHeader && (
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-dim mt-1 mb-1">
+                  {headerLabel}
+                </div>
+              )}
+              <CaddiesCallQuestion question={q}
+                locked={locked} busy={!!busy[q.slot]}
+                onSubmit={(answer) => submit(q.slot, answer)} />
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CaddiesCallStat({ label, value, accent }) {
+  const color = accent === "green" ? "var(--green)" : "var(--text)";
+  return (
+    <div className="rounded-lg border border-line bg-bg2/40 px-3 py-2 text-center">
+      <div className="display-num font-bold text-lg sm:text-xl" style={{ color }}>
+        {value}
+      </div>
+      <div className="text-[10px] uppercase tracking-wider text-dim font-semibold mt-0.5 truncate">
+        {label}
+      </div>
     </div>
   );
 }
