@@ -1786,7 +1786,7 @@ function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpe
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3">
         {/* Row 1 — branded header row, user menu on the right. The
             back-to-Clubhouse pill lives in the TabBar below so it's even
-            with the tab labels (My Picks / Live / etc). */}
+            with the tab labels (My Picks / Leaderboard / 19th Hole / Money List). */}
         <BrandedHeaderRow
           title={leagueName || "League"}
           subtitle={foundedYear ? `EST ${foundedYear}` : null}
@@ -4775,9 +4775,9 @@ function TeamSelector({ value, onChange }) {
 function TabBar({ tab, setTab, leftSlot }) {
   const tabs = [
     { id: "picks",       label: "My Picks" },
-    { id: "live",        label: "Live" },
-    { id: "chat",        label: "Chat" },
-    { id: "leaderboard", label: "Season Standings" },
+    { id: "live",        label: "Leaderboard" },
+    { id: "chat",        label: "19th Hole" },
+    { id: "leaderboard", label: "Money List" },
   ];
   return (
     <nav className="border-b border-line bg-bg2/40 backdrop-blur-xl sticky top-[57px] sm:top-[65px] z-20">
@@ -4852,13 +4852,13 @@ const LEAGUE_SLIDES = [
   },
   {
     title: "Subs + you score what they earn",
-    body:  "Between rounds you can swap a bench player in for a struggling starter. Once the next round tees off, that round's lineup is locked. Your score is the actual prize money your starters take home — bigger cuts, higher rank. The leaderboard updates live during play.",
+    body:  "Between rounds you can swap a bench player in for a struggling starter. Once the next round tees off, that round's lineup is locked. Your score is the actual prize money your starters take home — bigger cuts, higher rank. The Leaderboard tab updates live during play; the Money List tracks your running season total.",
     image: null,
     placeholder: "Sub modal · live earnings",
   },
   {
     title: "Tiebreakers",
-    body:  "Season-long leagues tie-break first by your original-starters total (no sub credit), then by your closest winning-score prediction. Single-major leagues use the score prediction directly. Lock yours in on the Picks tab — your guess shows up under the live leaderboard so everyone knows you're committed.",
+    body:  "Season-long leagues tie-break first by your original-starters total (no sub credit), then by your closest winning-score prediction. Single-major leagues use the score prediction directly. Lock yours in on My Picks — your guess shows up under the Leaderboard so everyone knows you're committed. Trash talk lives in the 19th Hole.",
     image: null,
     placeholder: "Tiebreaker rules",
   },
@@ -5026,11 +5026,17 @@ function OnboardingModal({ dismissible, onClose, authedUser, summary, kind = "cl
 }
 
 function Footer() {
+  // Dynamic right-side tagline — points at whichever major is live, else the
+  // next upcoming one. Auto-rolls through the season with no manual edits.
+  const focus = MAJORS.find(m => m.status === "live")
+             || MAJORS.find(m => m.status === "upcoming")
+             || MAJORS[MAJORS.length - 1];
+  const year = new Date(focus.firstTeeTime).getFullYear();
   return (
     <footer className="border-t border-line mt-6">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 text-[12px] text-dim flex flex-wrap gap-3 justify-between">
         <span><span className="font-semibold text-muted">OnlyMajors</span> · fantasy golf when it counts · onlymajors.com</span>
-        <span className="text-muted">Real 2026 PGA Championship at Aronimink</span>
+        <span className="text-muted">Real {year} {focus.name} at {focus.course}</span>
       </div>
     </footer>
   );
@@ -5988,7 +5994,7 @@ function ChatPanel({ user, messages, onSend }) {
     <div className="glass rounded-2xl flex flex-col flex-1 overflow-hidden">
       <header className="px-4 py-3 border-b border-line flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-base">League Chat</h3>
+          <h3 className="font-bold text-base">19th Hole</h3>
           <div className="text-[12px] text-dim">{TEAMS.length} members · {sorted.length} messages</div>
         </div>
         <div className="text-[11px] uppercase tracking-wider text-dim">Live</div>
@@ -6222,12 +6228,12 @@ function PreTournamentRow({ player, owners }) {
   const starMarker = tt?.startHole === 10 ? "*" : "";
   return (
     <div className="px-4 py-2 border-b border-line/60 flex items-center gap-3">
-      <div className="w-16 shrink-0 text-right">
-        <div className="font-mono font-semibold text-sm tabular-nums" style={{ color: tt ? "var(--green)" : "var(--dim)" }}>
+      <div className="w-14 shrink-0 text-right">
+        <div className="font-mono font-semibold text-[11px] tabular-nums leading-tight" style={{ color: tt ? "var(--green)" : "var(--dim)" }}>
           {tt ? tt.label.replace(" ET", "") : "—"}
           {starMarker && <span className="text-dim ml-0.5">{starMarker}</span>}
         </div>
-        <div className="text-[10px] uppercase tracking-wider text-dim">{tt?.wave || ""}</div>
+        <div className="text-[9px] uppercase tracking-wider text-dim leading-tight">{tt?.wave || ""}</div>
       </div>
       <CountryCode code={country} className="w-9 shrink-0"/>
       <div className="flex-1 min-w-0 font-medium text-sm truncate">{name}</div>
@@ -6959,7 +6965,7 @@ function LeaderboardTab({ picks, viewAs, leagueId }) {
     <div className="space-y-6">
       <div className="flex items-baseline justify-between flex-wrap gap-2">
         <div>
-          <h2 className="font-bold text-2xl tracking-tight">Season Standings</h2>
+          <h2 className="font-bold text-2xl tracking-tight">Money List</h2>
           <div className="text-xs text-dim mt-0.5">Cumulative earnings across all four majors</div>
         </div>
         {liveId && (
