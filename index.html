@@ -3094,31 +3094,62 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
-  const youName = authedUser?.displayName?.split(/[\s@]/)[0] || "You";
-  const top10 = [
-    { rank: 1,  name: "Mark D.",    total: 4845620 },
-    { rank: 2,  name: "Trey W.",    total: 4612300 },
-    { rank: 3,  name: "Jenna L.",   total: 4498875 },
-    { rank: 4,  name: "Sam R.",     total: 4380120 },
-    { rank: 5,  name: "Larry P.",   total: 4255000 },
-    { rank: 6,  name: "Boo P.",     total: 4112400 },
-    { rank: 7,  name: "Caleb J.",   total: 3998800 },
-    { rank: 8,  name: "Thorne H.",  total: 3922100 },
-    { rank: 9,  name: "Hannah M.",  total: 3877500 },
-    { rank: 10, name: "Cole T.",    total: 3812000 },
-  ];
-  const youRank  = 47;
-  const youTotal = 2841320;
-  const roster = [
-    { name: "Scottie Scheffler", total: 815000, pos: "T4",  status: "thru 14" },
-    { name: "Rory McIlroy",       total: 632400, pos: "T9",  status: "thru 12" },
-    { name: "Jon Rahm",           total: 489200, pos: "T15", status: "thru 11" },
-    { name: "Xander Schauffele",  total: 412800, pos: "T22", status: "F" },
-    { name: "Ludvig Åberg",       total: 287000, pos: "T31", status: "F" },
-    { name: "Justin Thomas",      total: 204920, pos: "MC",  status: "—" },
-  ];
-  const fmtM = (n) => `$${(n/1e6).toFixed(2)}M`;
-  const fmtK = (n) => n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : `$${(n/1000).toFixed(0)}K`;
+  const [standings, setStandings] = useState(null);
+  const [myPicks,   setMyPicks]   = useState(null);
+  const [err,       setErr]       = useState(null);
+  useEffect(() => {
+    if (!focusMajor?.id) return;
+    let cancelled = false;
+    const load = () => {
+      apiGetClubChampStandings(focusMajor.id)
+        .then(d => { if (!cancelled) setStandings(d); })
+        .catch(e => { if (!cancelled) setErr(e.message); });
+      apiGetClubChampPicks(focusMajor.id)
+        .then(d => { if (!cancelled) setMyPicks(d); })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [focusMajor?.id]);
+  const youName = (() => {
+    const f = authedUser?.firstName, l = authedUser?.lastName;
+    if (f && l) return `${f} ${l[0].toUpperCase()}.`;
+    return authedUser?.displayName?.split(/[\s@]/)[0] || "You";
+  })();
+  const youUserId = authedUser?.id ? Number(authedUser.id) : null;
+  const top10      = standings?.top10 || [];
+  const fieldSize  = standings?.fieldSize ?? 0;
+  const submitters = standings?.submitters || [];
+  const hasResults = top10.length > 0;
+  const youRow     = hasResults
+    ? top10.find(r => r.userId === youUserId)
+    : null;
+  // Pre-scoring fallback: show submitters list (no totals yet).
+  const preScoringRows = submitters.slice(0, 10).map((s, i) => ({
+    rank: i + 1, name: s.name, userId: s.userId, total: null,
+  }));
+  const displayRows = hasResults ? top10 : preScoringRows;
+  // Roster from user's locked picks
+  const starterIds = myPicks?.starters || [];
+  const roster = starterIds.map((gid) => {
+    const g = gid ? (G[gid] || GOLFERS_EXT[gid] || null) : null;
+    const earn = gid ? EARN[focusMajor.id]?.[gid] : null;
+    const total = gid ? (golferTotal(focusMajor.id, gid) ?? 0) : 0;
+    const pos = earn?.pos || (earn?.status === "mc" ? "MC" : earn?.status === "wd" ? "WD" : "—");
+    return {
+      gid,
+      name:    g?.name || "—",
+      country: g?.country || "",
+      pos,
+      status:  earn?.status === "mc" ? "Missed cut" : earn?.status === "wd" ? "Withdrew" : (earn?.thru || ""),
+      total,
+    };
+  });
+  const rosterTotal = roster.reduce((s, r) => s + (r.total || 0), 0);
+  const fmtM = (n) => n == null ? "—" : `$${(n/1e6).toFixed(2)}M`;
+  const fmtK = (n) => n == null ? "—" : n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : n >= 1e3 ? `$${Math.round(n/1000)}K` : `$${Math.round(n)}`;
+  const leaderTotal = hasResults ? top10[0]?.total : null;
   return ReactDOM.createPortal(
     <div className="fixed inset-0 z-50 overflow-y-auto"
       style={{ background: "var(--bg-1, #f5f1e8)" }}>
@@ -3140,8 +3171,7 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
         <div className="mb-1">
           <BackToClubhousePill onClick={onClose} />
         </div>
-
-        {/* Status banner — what the live tournament moment feels like */}
+        {/* Status banner */}
         <div className="rounded-2xl border border-line-2 overflow-hidden"
           style={{ background: "linear-gradient(135deg, rgba(43,69,53,0.92), rgba(43,69,53,0.78))", color: "var(--bg-1)" }}>
           <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -3152,110 +3182,132 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] font-semibold opacity-80">
                   <span className="w-1.5 h-1.5 bg-red-300 rounded-full live-dot"/>
-                  Round 3 in progress
+                  {focusMajor.status === "live" ? "Tournament underway" : focusMajor.status === "complete" ? "Final results" : "Roster locked"}
                 </div>
                 <div className="font-bold text-xl tracking-tight mt-0.5">{focusMajor.name}</div>
-                <div className="text-[12px] opacity-80 mt-0.5">{focusMajor.course} · {focusMajor.city}</div>
+                <div className="text-[12px] opacity-80 mt-0.5">{focusMajor.course}{focusMajor.city ? ` · ${focusMajor.city}` : ""}</div>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div className="leading-tight">
-                <div className="text-[10px] uppercase tracking-wider opacity-70">Entries</div>
-                <div className="display-num font-bold text-lg">2,341</div>
+                <div className="text-[10px] uppercase tracking-wider opacity-70">{fieldSize === 1 ? "Entry" : "Entries"}</div>
+                <div className="display-num font-bold text-lg">{fieldSize}</div>
               </div>
               <div className="leading-tight border-l border-white/20 pl-3 sm:pl-4">
                 <div className="text-[10px] uppercase tracking-wider opacity-70">Leader</div>
-                <div className="display-num font-bold text-lg">{fmtM(top10[0].total)}</div>
-              </div>
-              <div className="leading-tight border-l border-white/20 pl-3 sm:pl-4">
-                <div className="text-[10px] uppercase tracking-wider opacity-70">Cut</div>
-                <div className="display-num font-bold text-lg">+2</div>
+                <div className="display-num font-bold text-lg">{leaderTotal != null ? fmtM(leaderTotal) : "—"}</div>
               </div>
             </div>
           </div>
         </div>
-
+        {err && <div className="text-[12px] text-red text-center">{err}</div>}
         {/* Your standing */}
         <section>
           <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold mb-2">Your standing</div>
           <div className="rounded-2xl border border-line bg-white p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
                 <div className="w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0"
                   style={{ background: "var(--green)", color: "var(--bg-1)" }}>
-                  {youName[0]?.toUpperCase() || "M"}
+                  {(youName[0] || "M").toUpperCase()}
                 </div>
                 <div className="min-w-0">
-                  <div className="font-bold text-base leading-tight">{youName}</div>
+                  <div className="font-bold text-base leading-tight truncate">{youName}</div>
                   <div className="text-[12px] text-dim mt-0.5">Member #{memberNumber ?? "—"}</div>
                 </div>
               </div>
-              <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-dim">Rank</div>
-                <div className="display-num font-bold text-2xl">#{youRank}</div>
-              </div>
-              <div className="text-right border-l border-line pl-3 sm:pl-4">
-                <div className="text-[10px] uppercase tracking-wider text-dim">Total</div>
-                <div className="display-num font-bold text-2xl">{fmtM(youTotal)}</div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wider text-dim">Rank</div>
+                  <div className="display-num font-bold text-2xl">
+                    {hasResults && youRow ? `#${youRow.rank}` : myPicks?.submittedAt ? "—" : "Not entered"}
+                  </div>
+                </div>
+                <div className="text-right border-l border-line pl-3 sm:pl-4">
+                  <div className="text-[10px] uppercase tracking-wider text-dim">Total</div>
+                  <div className="display-num font-bold text-2xl">
+                    {hasResults && youRow ? fmtM(youRow.total)
+                      : rosterTotal > 0 ? fmtM(rosterTotal)
+                      : "—"}
+                  </div>
+                </div>
               </div>
             </div>
             {/* Roster strip */}
             <div className="border-t border-line pt-3 space-y-1.5">
-              <div className="text-[10px] uppercase tracking-wider text-dim font-semibold mb-1.5">Your roster · 6 starters</div>
-              {roster.map((r, i) => (
-                <div key={i} className="flex items-center gap-3 text-[13px]">
-                  <div className="w-6 text-[11px] font-mono text-dim shrink-0">S{i+1}</div>
-                  <div className="flex-1 truncate font-medium">{r.name}</div>
-                  <div className={`w-12 text-right text-[11px] font-mono ${r.pos === "MC" ? "text-dim" : "text-muted"}`}>{r.pos}</div>
-                  <div className="w-12 text-right text-[11px] text-dim">{r.status}</div>
-                  <div className="w-16 text-right font-semibold">{fmtK(r.total)}</div>
+              <div className="text-[10px] uppercase tracking-wider text-dim font-semibold mb-1.5">
+                Your roster · {roster.length || 6} starters
+              </div>
+              {roster.length === 0 ? (
+                <div className="text-[12px] text-dim italic py-2">
+                  You didn't enter the {focusMajor.short} Club Championship.
                 </div>
-              ))}
+              ) : (
+                roster.map((r, i) => (
+                  <div key={r.gid || i} className="flex items-center gap-3 text-[13px]">
+                    <div className="w-6 text-[11px] font-mono text-dim shrink-0">S{i+1}</div>
+                    <div className="flex-1 truncate font-medium">{r.name}</div>
+                    <div className={`w-12 text-right text-[11px] font-mono ${r.pos === "MC" || r.pos === "WD" ? "text-dim" : "text-muted"}`}>{r.pos}</div>
+                    <div className="w-16 text-right text-[11px] text-dim truncate">{r.status}</div>
+                    <div className="w-16 text-right font-semibold">{r.total > 0 ? fmtK(r.total) : "—"}</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </section>
-
-        {/* Top 10 leaderboard */}
+        {/* Leaderboard */}
         <section>
           <div className="flex items-baseline justify-between mb-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold">Leaderboard</div>
-            <div className="text-[11px] text-dim">Top 10 of 2,341</div>
-          </div>
-          <div className="rounded-2xl border border-line bg-white overflow-hidden">
-            {top10.map((r) => (
-              <div key={r.rank}
-                className="flex items-center gap-3 px-4 py-2.5 border-b border-line last:border-0">
-                <div className={`w-7 text-[12px] font-mono font-semibold ${r.rank === 1 ? "text-gold" : r.rank <= 3 ? "text-muted" : "text-dim"}`}>
-                  #{r.rank}
-                </div>
-                <div className="flex-1 text-sm font-semibold truncate">{r.name}</div>
-                <div className="display-num font-bold text-sm">{fmtM(r.total)}</div>
-              </div>
-            ))}
-            {/* Pinned you-row */}
-            <div className="flex items-center gap-3 px-4 py-2.5 border-t-2 border-dashed border-line"
-              style={{ background: "rgba(43,69,53,0.06)" }}>
-              <div className="w-7 text-[12px] font-mono font-semibold" style={{ color: "var(--green)" }}>
-                #{youRank}
-              </div>
-              <div className="flex-1 text-sm font-semibold truncate">
-                {youName} <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>
-              </div>
-              <div className="display-num font-bold text-sm">{fmtM(youTotal)}</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-dim font-semibold">
+              {hasResults ? "Leaderboard" : "Members entered"}
+            </div>
+            <div className="text-[11px] text-dim">
+              {hasResults ? `Top ${Math.min(displayRows.length, 10)} of ${fieldSize}` : `${fieldSize} ${fieldSize === 1 ? "member" : "members"}`}
             </div>
           </div>
+          <div className="rounded-2xl border border-line bg-white overflow-hidden">
+            {displayRows.length === 0 ? (
+              <div className="px-4 py-8 text-center text-[13px] text-dim">
+                {fieldSize === 0 ? "No entries yet." : "Standings populate after the first round wraps."}
+              </div>
+            ) : (
+              displayRows.map((r) => (
+                <div key={`${r.rank}-${r.userId || r.name}`}
+                  className="flex items-center gap-3 px-4 py-2.5 border-b border-line last:border-0"
+                  style={r.userId === youUserId ? { background: "rgba(43,69,53,0.06)" } : {}}>
+                  <div className={`w-7 text-[12px] font-mono font-semibold ${r.rank === 1 ? "text-gold" : r.rank <= 3 ? "text-muted" : "text-dim"}`}>
+                    #{r.rank}
+                  </div>
+                  <div className="flex-1 text-sm font-semibold truncate">
+                    {r.name}
+                    {r.userId === youUserId && <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>}
+                  </div>
+                  <div className="display-num font-bold text-sm">{r.total != null ? fmtM(r.total) : "—"}</div>
+                </div>
+              ))
+            )}
+            {/* Pinned you-row if user isn't in the visible slice */}
+            {hasResults && youRow && !displayRows.some(r => r.userId === youUserId) && (
+              <div className="flex items-center gap-3 px-4 py-2.5 border-t-2 border-dashed border-line"
+                style={{ background: "rgba(43,69,53,0.06)" }}>
+                <div className="w-7 text-[12px] font-mono font-semibold" style={{ color: "var(--green)" }}>
+                  #{youRow.rank}
+                </div>
+                <div className="flex-1 text-sm font-semibold truncate">
+                  {youName} <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>
+                </div>
+                <div className="display-num font-bold text-sm">{fmtM(youRow.total)}</div>
+              </div>
+            )}
+          </div>
         </section>
-
-        {/* Recent updates */}
-        <LiveUpdatesFeed updates={[
-          { when: "2 min ago",  message: "Scottie Scheffler birdied 14 — moved to T4",                       delta: "+$48K" },
-          { when: "18 min ago", message: "Round 3 cut line settled at +2 — 71 players advance",              delta: null    },
-          { when: "32 min ago", message: "Rory McIlroy bogeyed 11 — slipped to T9",                          delta: "-$22K" },
-          { when: "1 hr ago",   message: "Round 3 leaderboard live. Updates refresh every 60 seconds.",      delta: null    },
-        ]} />
-
-        <div className="text-center text-[12px] text-dim pb-4">
-          Live updates refresh every 60 seconds during play.
+        <div className="text-center text-[12px] text-dim pb-4 leading-relaxed">
+          {focusMajor.status === "live"
+            ? "Standings refresh every 60 seconds during play."
+            : focusMajor.status === "complete"
+              ? "Final results."
+              : "Live scoring kicks in once the first round wraps."}
         </div>
       </main>
     </div>,
