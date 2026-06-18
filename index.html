@@ -2977,20 +2977,29 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
         <div className="text-sm text-muted leading-relaxed">
           Six starters, every member of OnlyMajors, one tournament. Separate from your league picks. The winner of each Club Championship is enshrined in the Hall of Fame.
         </div>
-        <button
-          type="button"
-          disabled={!picksOpen && !isLockedForTourney}
-          onClick={() => setEntryOpen(true)}
-          className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
-          {isLockedForTourney ? "View my locked roster" : picksOpen ? "Enter the Club Championship" : `Opens ${focusMajor.picksOpenLabel}`}
-        </button>
-        {isLockedForTourney && (
-          <button type="button" onClick={() => setLivePageOpen(true)}
-            className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors flex items-center justify-center gap-1.5">
-            See the live tournament page
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 4l4 4-4 4"/>
-            </svg>
+        {isLockedForTourney ? (
+          <>
+            {/* Tournament underway — watching beats picking. Live page gets
+                the primary button; locked roster moves to a quiet link. */}
+            <button type="button" onClick={() => setLivePageOpen(true)}
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill flex items-center justify-center gap-1.5">
+              See the live tournament page
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 4l4 4-4 4"/>
+              </svg>
+            </button>
+            <button type="button" onClick={() => setEntryOpen(true)}
+              className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors">
+              View my locked roster
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            disabled={!picksOpen}
+            onClick={() => setEntryOpen(true)}
+            className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+            {picksOpen ? "Enter the Club Championship" : `Opens ${focusMajor.picksOpenLabel}`}
           </button>
         )}
         <div className="text-[11px] text-dim text-center">
@@ -6144,21 +6153,41 @@ function CaddiesCallCard({ authedUser, memberNumber }) {
         <div className="text-sm text-muted leading-relaxed">
           Eleven calls per major — five tournament picks, five head-to-head matchups, one for your own team. Locks at first tee. Scored Sunday and enshrined in the Hall of Fame.
         </div>
-        <button
-          type="button"
-          disabled={!hasQuestions && !locked}
-          onClick={() => setEntryOpen(true)}
-          className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
-          {ctaLabel}
-        </button>
-        {hasQuestions && answeredCount > 0 && (
-          <button type="button" onClick={() => setLivePageOpen(true)}
-            className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors flex items-center justify-center gap-1.5">
-            See my live card
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M6 4l4 4-4 4"/>
-            </svg>
-          </button>
+        {locked && hasQuestions ? (
+          <>
+            {/* Calls are in — watching beats picking. Live card gets the
+                primary button; locked card moves to a quiet link. */}
+            <button type="button" onClick={() => setLivePageOpen(true)}
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill flex items-center justify-center gap-1.5">
+              See my live card
+              <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 4l4 4-4 4"/>
+              </svg>
+            </button>
+            <button type="button" onClick={() => setEntryOpen(true)}
+              className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors">
+              View my locked calls
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              disabled={!hasQuestions}
+              onClick={() => setEntryOpen(true)}
+              className="w-full font-semibold rounded-lg py-2.5 text-sm om-pill disabled:opacity-60 disabled:cursor-not-allowed">
+              {ctaLabel}
+            </button>
+            {hasQuestions && answeredCount > 0 && (
+              <button type="button" onClick={() => setLivePageOpen(true)}
+                className="w-full font-semibold rounded-lg py-2 text-[12px] text-muted hover:text-text transition-colors flex items-center justify-center gap-1.5">
+                See my live card
+                <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 4l4 4-4 4"/>
+                </svg>
+              </button>
+            )}
+          </>
         )}
         <div className="text-[11px] text-dim text-center">
           {locked
