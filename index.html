@@ -1669,7 +1669,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col" data-sync={syncToken}>
-      <TopBar user={user} onSignOut={signOut} onSwitchUser={null} onResetPicks={resetPicks} onResetAll={resetAll}
+      <TopBar user={user} picks={safePicks} onSignOut={signOut} onSwitchUser={null} onResetPicks={resetPicks} onResetAll={resetAll}
         onOpenProfile={() => setTab("profile")} onOpenLeague={() => setTab("league")}
         onBackToHub={() => setActiveLeagueId(null)} multiLeague={true}
         onOpenOnboarding={() => setOnboardingMode({ kind: "league", source: "manual" })} leagueId={activeLeagueId}
@@ -1811,11 +1811,15 @@ function BackToClubhousePill({ onClick }) {
   );
 }
 
-function TopBar({ user, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding, leagueId, leagueName, foundedYear }) {
+function TopBar({ user, picks, onSignOut, onSwitchUser, onResetPicks, onResetAll, onOpenProfile, onOpenLeague, onBackToHub, multiLeague, onOpenOnboarding, leagueId, leagueName, foundedYear }) {
   const viewAs = user.id;
   const liveMajor = MAJORS.find(m => m.status === "live");
-  const settled  = MAJORS.filter(m => m.status === "complete").reduce((s, m) => s + teamMajorTotal(viewAs, m.id), 0);
-  const liveContrib = liveMajor ? teamMajorTotal(viewAs, liveMajor.id) : 0;
+  // Use the LIVE picks state (passed in) so Live Add reflects current
+  // projected money. teamMajorTotal defaults to static PICKS seed which
+  // doesn't include real members' rosters from the backend.
+  const livePicks = picks || PICKS;
+  const settled  = MAJORS.filter(m => m.status === "complete").reduce((s, m) => s + teamMajorTotal(viewAs, m.id, livePicks), 0);
+  const liveContrib = liveMajor ? teamMajorTotal(viewAs, liveMajor.id, livePicks) : 0;
   const total = settled + liveContrib;
 
   const sorted = teamsForLeague(leagueId).map(t => ({ id: t.id, total: teamSeasonTotal(t.id) })).sort((a,b) => b.total - a.total);
@@ -3057,7 +3061,7 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
                     #{yourRank}
                   </div>
                   <div className="text-[10px] uppercase tracking-[0.18em] text-dim font-semibold">
-                    you
+                    Ranking
                   </div>
                 </div>
               )}
@@ -6408,12 +6412,12 @@ function CaddiesCallCard({ authedUser, memberNumber }) {
             </div>
           )}
         </div>
-        {/* Personal stats row — same 4 boxes the 19th-Hole card used. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        {/* Personal stats row — 3 career boxes. The current-major progress
+            lives in the chip up top, so we don't need a 4th "Answered" box. */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <CaddiesCallStat label="Wins" value={correct} accent="green" />
           <CaddiesCallStat label="Losses" value={losses} accent="muted" />
           <CaddiesCallStat label="Call Rate" value={callRatePct != null ? `${callRatePct}%` : "—"} accent="green" />
-          <CaddiesCallStat label="Answered" value={answered} accent="muted" />
         </div>
         <div className="text-sm text-muted leading-relaxed">
           Eleven calls per major — five tournament picks, five head-to-head matchups, one for your own team. Locks at first tee. Scored Sunday and enshrined in the Hall of Fame.
