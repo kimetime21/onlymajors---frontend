@@ -7075,10 +7075,9 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
             <table className="w-full text-[12px]">
               <thead className="text-dim uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="text-left font-semibold pb-1">R</th>
+                  <th className="text-left font-semibold pb-1">Round</th>
                   <th className="text-right font-semibold pb-1">Strokes</th>
                   <th className="text-right font-semibold pb-1">ToPar</th>
-                  <th className="text-right font-semibold pb-1">SG</th>
                   <th className="text-right font-semibold pb-1">Pos</th>
                   <th className="text-right font-semibold pb-1">$</th>
                 </tr>
@@ -7089,16 +7088,13 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
                     <td className="py-1 font-semibold">R{r.round}</td>
                     <td className="py-1 text-right tabular-nums">{r.roundScore == null ? "—" : r.roundScore}</td>
                     <td className="py-1 text-right tabular-nums">{r.scoreToPar === null || r.scoreToPar === undefined ? "—" : (r.scoreToPar === 0 ? "E" : (r.scoreToPar > 0 ? `+${r.scoreToPar}` : r.scoreToPar))}</td>
-                    <td className={`py-1 text-right tabular-nums font-semibold ${r.sg?.total > 0 ? "text-green" : r.sg?.total < 0 ? "text-red" : ""}`}>
-                      {r.sg?.total != null ? (r.sg.total > 0 ? `+${r.sg.total.toFixed(1)}` : r.sg.total.toFixed(1)) : "—"}
-                    </td>
                     <td className="py-1 text-right">{r.position || "—"}</td>
                     <td className="py-1 text-right tabular-nums">{r.money == null ? "—" : fmtCompactMoney(r.money)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="text-[10px] text-dim mt-1.5">Strokes + per-round SG from DataGolf · $ = projected money at round end</div>
+            <div className="text-[10px] text-dim mt-1.5">Strokes from DataGolf · $ = projected money snapshotted at end of round</div>
           </StatBlock>
 
           {/* Tournament SG */}
