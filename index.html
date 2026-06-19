@@ -267,6 +267,18 @@ const MAJORS = [
     if (now < start)      m.status = "upcoming";
     else if (now < end)   m.status = "live";
     else                  m.status = "complete";
+    // Derive currentRound from rounds[] dates when we're live. Falls back
+    // to whatever was hardcoded, then to 1.
+    if (m.status === "live" && m.rounds) {
+      let cr = 1;
+      for (const r of [1, 2, 3, 4]) {
+        const tee = m.rounds[`r${r}`];
+        if (tee && new Date(tee).getTime() <= now) cr = r;
+      }
+      m.currentRound = cr;
+    } else if (m.status === "complete" && !m.currentRound) {
+      m.currentRound = 4;
+    }
     if (m.fieldLockDate && m.fieldStatus !== "set") {
       const year = new Date(m.firstTeeTime).getFullYear();
       const parsed = new Date(`${m.fieldLockDate} ${year} 23:59:59`);
@@ -644,8 +656,14 @@ function golferTotal(majorId, golferId) {
   const e = EARN[majorId]?.[golferId];
   if (!e) return null;
   if (e.status === "mc" || e.status === "wd" || e.status === "dfl") return 0;
+  // Tournament complete or round wrapped — prefer the historical money first.
+  if (e.finalMoney != null) return e.finalMoney;
   if (e.r4 != null) return e.r4;
   if (e.r3 != null) return e.r3;
+  // Live tournament — backend derives projMoney from DG finish probabilities.
+  // This is the source of truth during R1-R3 when round snapshots are partial.
+  if (e.projMoney != null && e.projMoney > 0) return e.projMoney;
+  // Last-resort fallback to legacy position-based projection (pre-backend-money).
   const proj = projectedPrize(majorId, e.position);
   if (proj != null) return proj;
   return e.r2 ?? e.r1 ?? null;
@@ -1530,6 +1548,8 @@ function App() {
         matched:  upd.matched ?? cur.matched ?? null,
         dg_id:    upd.dg_id   ?? cur.dg_id   ?? null,
         amateur:  upd.amateur ?? cur.amateur ?? false,
+        projMoney:  upd.projMoney  ?? cur.projMoney  ?? null,
+        finalMoney: upd.finalMoney ?? cur.finalMoney ?? null,
         r1: upd.r1 ?? cur.r1 ?? null,
         r2: upd.r2 ?? cur.r2 ?? null,
         r3: upd.r3 ?? cur.r3 ?? null,
