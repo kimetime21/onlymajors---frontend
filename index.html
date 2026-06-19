@@ -7164,6 +7164,46 @@ function fmtCompactMoney(n) {
   return `$${Math.round(n)}`;
 }
 
+// Compute a smart round-state label from EARN data + lastUpdated. Returns
+// something like "R1 · Play Suspended", "End of R1", or "R1 in progress".
+// Falls back to plain "R{N}" if we can't infer anything useful.
+function computeLiveStatus(majorId, currentRound, lastUpdatedMs) {
+  const earn = EARN[majorId] || {};
+  const players = Object.values(earn);
+  if (players.length === 0 || !currentRound) return null;
+  const active = players.filter(p => p.status === "made_cut");
+  if (active.length === 0) return null;
+  const isFinished = (p) => {
+    const t = p.thru;
+    return t === "F" || t === 18 || t === "18" || t === "*F" || t === "F*";
+  };
+  const isMidRound = (p) => {
+    if (isFinished(p)) return false;
+    const t = p.thru;
+    if (t == null || t === "" || t === "—") return false;
+    const n = typeof t === "number" ? t : parseInt(String(t).replace(/[^0-9]/g, ""), 10);
+    return Number.isFinite(n) && n > 0 && n < 18;
+  };
+  const finished = active.filter(isFinished).length;
+  const playing  = active.filter(isMidRound).length;
+  const ageMs    = lastUpdatedMs ? Date.now() - lastUpdatedMs : 0;
+  const isStale  = ageMs > 20 * 60 * 1000; // 20+ min since last update
+  // All active finished → round wrapped.
+  if (finished > 0 && playing === 0 && finished >= active.length * 0.95) {
+    return `End of R${currentRound}`;
+  }
+  // Some finished, none mid-round, data is stale → play suspended.
+  if (finished > 0 && playing === 0 && isStale) {
+    return `R${currentRound} · Play Suspended`;
+  }
+  // Some action live.
+  if (playing > 0) {
+    return `R${currentRound} in progress`;
+  }
+  // Default — round number only.
+  return `R${currentRound}`;
+}
+
 function EmptyLiveState({ major }) {
   return (
     <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${major.scene}`}>
@@ -7326,18 +7366,30 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
           <div className={`relative rounded-2xl overflow-hidden border border-line-2 ${viewed.scene}`}>
             <div className="absolute inset-0 dot-grid opacity-40"/>
             <div className="relative p-5 sm:p-6">
-              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-dim">
-                {isLive ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span className="relative inline-block w-2 h-2"><span className="absolute inset-0 bg-red-400 rounded-full live-dot"/><span className="absolute inset-0 bg-red-400 rounded-full opacity-50 live-glow"/></span>
-                    Live now
-                  </span>
-                ) : (
-                  <span className="font-semibold text-gold">Past results</span>
-                )}
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-dim flex-wrap">
+                {(() => {
+                  if (!isLive) return <span className="font-semibold text-gold">Past results</span>;
+                  const lastMs = lastUpdated ? new Date(lastUpdated).getTime() : null;
+                  const statusLabel = computeLiveStatus(viewed.id, viewed.currentRound, lastMs);
+                  const isSuspended = statusLabel && statusLabel.toLowerCase().includes("suspend");
+                  const isEnd = statusLabel && statusLabel.toLowerCase().startsWith("end of");
+                  return (
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="relative inline-block w-2 h-2">
+                        <span className={`absolute inset-0 rounded-full ${isSuspended ? "bg-gold" : isEnd ? "bg-green" : "bg-red-400 live-dot"}`}/>
+                        {!isSuspended && !isEnd && <span className="absolute inset-0 bg-red-400 rounded-full opacity-50 live-glow"/>}
+                      </span>
+                      {isSuspended ? "Play Suspended" : isEnd ? "Round wrapped" : "Live now"}
+                    </span>
+                  );
+                })()}
                 <span>·</span>
                 <span>{viewed.name}</span>
-                {isLive && <><span>·</span><span>R{viewed.currentRound}</span></>}
+                {isLive && (() => {
+                  const lastMs = lastUpdated ? new Date(lastUpdated).getTime() : null;
+                  const statusLabel = computeLiveStatus(viewed.id, viewed.currentRound, lastMs);
+                  return statusLabel ? <><span>·</span><span>{statusLabel}</span></> : null;
+                })()}
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-5 items-end">
                 <div className="sm:col-span-2">
