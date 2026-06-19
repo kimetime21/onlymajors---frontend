@@ -7418,10 +7418,10 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
             ))}
           </div>
 
-          {/* Recent updates — same shape as the Club Championship live page,
-              populated with league-aware events. Static mock for now; will
-              wire to DataGolf events once the backend pushes them. */}
-          {isLive && <LiveUpdatesFeed updates={buildLeagueUpdatesMock(rows, viewed)} />}
+          {/* Recent updates panel removed — was static mock content. Real
+              event-stream wiring (birdies, bogeys, position changes for
+              league members' starters) lives behind a per-tournament event
+              feed we haven't built yet. Better empty than fake. */}
 
           {/* Score Predictions */}
           <ScorePredictionsPanel picks={picks} majorId={viewed.id} leagueId={leagueId} />
