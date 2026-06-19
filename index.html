@@ -3009,12 +3009,17 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
   const picksOpen = arePicksOpen(focusMajor);
   const isLockedForTourney = focusMajor.status === "live" || focusMajor.status === "complete";
   const [entryCount, setEntryCount] = useState(null);
+  const [yourRank,   setYourRank]   = useState(null);
   useEffect(() => {
     if (!focusMajor?.id) return;
     let cancelled = false;
     const load = () => {
       apiGetClubChampStandings(focusMajor.id)
-        .then(d => { if (!cancelled) setEntryCount(d?.fieldSize ?? 0); })
+        .then(d => {
+          if (cancelled) return;
+          setEntryCount(d?.fieldSize ?? 0);
+          setYourRank(d?.you?.rank ?? null);
+        })
         .catch(() => {});
     };
     load();
@@ -3042,15 +3047,27 @@ function ClubChampionshipCard({ authedUser, memberNumber }) {
               </div>
             </div>
           </div>
-          {/* Live entry counter — chip sits top-right so it always shows the
-              current participation count without expanding the averages. */}
+          {/* Live entry counter + your rank — chips sit top-right. Rank
+              chip shows up only once standings have started populating. */}
           {entryCount != null && (
-            <div className="shrink-0 text-right leading-tight">
-              <div className="display-num font-bold text-xl" style={{ color: "var(--green)" }}>
-                {entryCount}
-              </div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-dim font-semibold">
-                {entryCount === 1 ? "entry" : "entries"}
+            <div className="shrink-0 flex items-start gap-3">
+              {yourRank != null && (
+                <div className="text-right leading-tight">
+                  <div className="display-num font-bold text-xl" style={{ color: "var(--gold)" }}>
+                    #{yourRank}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-dim font-semibold">
+                    you
+                  </div>
+                </div>
+              )}
+              <div className="text-right leading-tight">
+                <div className="display-num font-bold text-xl" style={{ color: "var(--green)" }}>
+                  {entryCount}
+                </div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-dim font-semibold">
+                  {entryCount === 1 ? "entry" : "entries"}
+                </div>
               </div>
             </div>
           )}
