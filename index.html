@@ -2838,48 +2838,87 @@ function MembershipCard({ authedUser, summary, onOpenProfile }) {
 }
 function HandicapStatsCard({ stats }) {
   const hasStats = stats && (stats.tournCount > 0 || stats.seasonCount > 0 || stats.tournWins > 0 || stats.overallWins > 0);
+  const [expanded, setExpanded] = useState(false);
+  const [ccSummary, setCcSummary] = useState(null);
+  useEffect(() => {
+    if (!expanded) return;
+    authFetch(`${ONLYMAJORS_API}/api/me/caddies-call/summary`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(s => setCcSummary(s))
+      .catch(() => {});
+  }, [expanded]);
   return (
-    <div className="rounded-2xl border border-line-2 bg-white p-5 sm:p-6">
-      {hasStats ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <CareerStat
-            label="Tournament avg"
-            value={fmt(stats.tournAvg)}
-            sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
-          />
-          <CareerStat
-            label="Tournament PR"
-            value={fmt(stats.tournPR)}
-            sub="best single major"
-            highlight={stats.tournPR > 0}
-          />
-          <CareerStat
-            label="Tournament wins"
-            value={String(stats.tournWins)}
-            sub={stats.tournWins === 1 ? "major championship" : "major championships"}
-            highlight={stats.tournWins > 0}
-          />
-          <CareerStat
-            label="Season avg"
-            value={fmt(stats.overallAvg)}
-            sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
-          />
-          <CareerStat
-            label="Season PR"
-            value={fmt(stats.overallPR)}
-            sub="best full season"
-            highlight={stats.overallPR > 0}
-          />
-          <CareerStat
-            label="Season wins"
-            value={String(stats.overallWins)}
-            sub={stats.overallWins === 1 ? "season title" : "season titles"}
-            highlight={stats.overallWins > 0}
-          />
-        </div>
-      ) : (
-        <div className="text-xs text-dim italic">
-          Handicap stats will populate as your league archives load. Play a major and the tournament average updates automatically.
+    <div className="rounded-2xl border border-line-2 bg-white overflow-hidden">
+      <div className="p-5 sm:p-6">
+        {hasStats ? (
+          <div className="grid grid-cols-2 gap-3">
+            <CareerStat
+              label="Tournament avg"
+              value={fmt(stats.tournAvg)}
+              sub={`${stats.tournCount} major${stats.tournCount === 1 ? "" : "s"}`}
+            />
+            <CareerStat
+              label="Season avg"
+              value={fmt(stats.overallAvg)}
+              sub={`${stats.seasonCount} season${stats.seasonCount === 1 ? "" : "s"}`}
+            />
+          </div>
+        ) : (
+          <div className="text-xs text-dim italic">
+            Handicap stats will populate as your league archives load. Play a major and the tournament average updates automatically.
+          </div>
+        )}
+      </div>
+      {/* Deep dive — collapsed by default. Reveals the rest of the handicap
+          stats, Club Championship career stats, and Caddie's Call stats. */}
+      <button onClick={() => setExpanded(o => !o)}
+        className="w-full border-t border-line bg-black/[0.02] px-4 sm:px-5 py-2.5 flex items-center justify-between text-left hover:bg-black/[0.04] transition-colors">
+        <span className="text-[12px] uppercase tracking-wider text-dim font-semibold">
+          {expanded ? "Hide deep dive" : "Deep dive"}
+        </span>
+        <svg viewBox="0 0 24 24" className={`w-3.5 h-3.5 text-dim transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      {expanded && (
+        <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 fade-in space-y-5">
+          {hasStats && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
+                Handicap deep dive
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <CareerStat label="Tournament PR" value={fmt(stats.tournPR)} sub="best single major" highlight={stats.tournPR > 0} />
+                <CareerStat label="Tournament wins" value={String(stats.tournWins)} sub={stats.tournWins === 1 ? "major championship" : "major championships"} highlight={stats.tournWins > 0} />
+                <CareerStat label="Season PR" value={fmt(stats.overallPR)} sub="best full season" highlight={stats.overallPR > 0} />
+                <CareerStat label="Season wins" value={String(stats.overallWins)} sub={stats.overallWins === 1 ? "season title" : "season titles"} highlight={stats.overallWins > 0} />
+              </div>
+            </div>
+          )}
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
+              Club Championship
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <CareerStat label="Career avg" value="—" sub="awaits first event" />
+              <CareerStat label="PR" value="—" sub="best single major" />
+              <CareerStat label="Wins" value="0" sub="championships" />
+            </div>
+            <div className="text-[11px] text-dim italic mt-2">
+              First Club Championship crowns Sunday at the U.S. Open.
+            </div>
+          </div>
+          <div>
+            <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
+              Caddie's Call
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <CareerStat label="Wins" value={String(ccSummary?.correct ?? 0)} sub="career" highlight={(ccSummary?.correct ?? 0) > 0} />
+              <CareerStat label="Losses" value={String(Math.max(0, (ccSummary?.answered ?? 0) - (ccSummary?.correct ?? 0)))} sub="career" />
+              <CareerStat label="Call Rate" value={ccSummary?.callRate != null ? `${Math.round(ccSummary.callRate * 100)}%` : "—"} sub="of calls" highlight={ccSummary?.callRate != null && ccSummary.callRate >= 0.5} />
+              <CareerStat label="Majors" value={String(ccSummary?.majorsPlayed ?? 0)} sub="entered" />
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -3118,6 +3157,78 @@ function LiveUpdatesFeed({ updates, title = "Recent updates", note }) {
     </section>
   );
 }
+
+// Turn a backend event object into the {when, message, delta} shape
+// LiveUpdatesFeed expects.
+function formatLiveEvent(ev) {
+  const when = relativeWhen(ev.ts);
+  const fmtMoney = (n) => {
+    const abs = Math.abs(n);
+    const sign = n > 0 ? "+" : "-";
+    if (abs >= 1_000_000) return `${sign}$${(abs/1e6).toFixed(2)}M`;
+    if (abs >= 1_000)     return `${sign}$${Math.round(abs/1000)}K`;
+    return `${sign}$${Math.round(abs)}`;
+  };
+  switch (ev.type) {
+    case "climb":
+      return {
+        when,
+        message: `${ev.name} climbed ${ev.oldPos} → ${ev.newPos}`,
+        delta: ev.moneyDelta ? fmtMoney(ev.moneyDelta) : null,
+      };
+    case "fall":
+      return {
+        when,
+        message: `${ev.name} fell ${ev.oldPos} → ${ev.newPos}`,
+        delta: ev.moneyDelta ? fmtMoney(ev.moneyDelta) : null,
+      };
+    case "withdrew":
+      return { when, message: `${ev.name} withdrew`, delta: null };
+    case "missed_cut":
+      return { when, message: `${ev.name} missed the cut`, delta: null };
+    case "new_leader":
+      return {
+        when,
+        message: `${ev.name} takes sole lead at ${ev.scoreFmt || "E"}`,
+        delta: null,
+      };
+    default:
+      return null;
+  }
+}
+function relativeWhen(ts) {
+  if (!ts) return "—";
+  const diff = Math.max(0, Date.now() - ts);
+  const min = Math.floor(diff / 60000);
+  if (min < 1)  return "now";
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24)  return `${hr} hr ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
+// Self-contained recent-updates panel. Polls /api/leaderboard/:majorId/events
+// every 60s. Optional leagueId scopes to that league's combined roster.
+function LiveEventsPanel({ majorId, leagueId, title = "Recent updates", note }) {
+  const [events, setEvents] = useState([]);
+  useEffect(() => {
+    if (!majorId) return;
+    let cancelled = false;
+    const load = () => {
+      const qs = leagueId ? `?leagueId=${leagueId}` : "";
+      authFetch(`${ONLYMAJORS_API}/api/leaderboard/${majorId}/events${qs}`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(d => { if (!cancelled) setEvents(Array.isArray(d.events) ? d.events : []); })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 60_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [majorId, leagueId]);
+  const updates = events.map(formatLiveEvent).filter(Boolean);
+  if (updates.length === 0) return null;
+  return <LiveUpdatesFeed updates={updates} title={title} note={note} />;
+}
 function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClose }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -3332,6 +3443,12 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
             )}
           </div>
         </section>
+        {/* Clubhouse-wide recent events — entire field, not league-scoped. */}
+        {focusMajor.status === "live" && (
+          <LiveEventsPanel majorId={focusMajor.id}
+            title="Recent updates · entire field"
+            note="Updates refresh every minute" />
+        )}
         <div className="text-center text-[12px] text-dim pb-4 leading-relaxed">
           {focusMajor.status === "live"
             ? "Standings refresh every 60 seconds during play."
@@ -6069,6 +6186,7 @@ function PickRow({ role, slotIndex, golferId, majorId, major, canSub, canSubOut,
 function ChatTab({ user, picks, messages, onSend, leagueId }) {
   // Caddie's Call has been promoted to a Clubhouse-wide card. The 19th
   // Hole tab is now pure league chatter + league-scoped leaderboard.
+  const liveMajor = MAJORS.find(m => m.status === "live");
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4" style={{ minHeight: "calc(100vh - 320px)" }}>
@@ -6079,6 +6197,13 @@ function ChatTab({ user, picks, messages, onSend, leagueId }) {
           <TourLeaderboardPanel picks={picks} user={user} leagueId={leagueId} />
         </div>
       </div>
+      {/* League-scoped Recent Updates — only events from golfers on this
+          league's combined roster. Hidden when no live major. */}
+      {liveMajor && leagueId && (
+        <LiveEventsPanel majorId={liveMajor.id} leagueId={leagueId}
+          title="Recent updates · league rosters"
+          note="Updates refresh every minute" />
+      )}
     </div>
   );
 }
@@ -6529,6 +6654,115 @@ function CaddiesCallAverages({ majorId, majorShort }) {
 // Live tracking page — full-screen portal, same chrome as Club Championship
 // live page. Shows the user's 11 calls with section dividers + per-pick
 // status (pending / win / loss after Sunday scoring).
+// Compute live status for a Caddie's Call question from EARN data.
+// Returns { state, label } where state ∈ "win" | "loss" | "leading" |
+// "trailing" | "even" | "pending". Live page renders a colored badge
+// from this — green for win/leading, red for loss/trailing, gold for
+// even, dim for pending.
+function computeCallLiveStatus(q, youKey, majorId) {
+  if (!youKey) return { state: "none", label: "—" };
+  if (q.scoredAt && q.correctAnswer) {
+    return q.correctAnswer === youKey
+      ? { state: "win",  label: "Win"  }
+      : { state: "loss", label: "Loss" };
+  }
+  const players = Object.values(EARN[majorId] || {});
+  const findByName = (name) => {
+    if (!name) return null;
+    const lc = String(name).toLowerCase().trim();
+    return players.find(p => {
+      const pn = (p.name || "").toLowerCase();
+      return pn === lc || pn.includes(lc) || lc.includes(pn);
+    });
+  };
+  const youOpt  = q.options?.find(o => o.key === youKey);
+  const youLbl  = (youOpt?.label || youKey || "").toLowerCase();
+
+  // Q1 — winning score brackets (-10 or better / -5 to -9 / E to -4 / +1 or worse).
+  if (q.slot === 1) {
+    const made = players.filter(p => p.status === "made_cut" && typeof p.score === "number");
+    if (made.length === 0) return { state: "pending", label: "Pending" };
+    const min = Math.min(...made.map(p => p.score));
+    const onTrack =
+      (youLbl.includes("-10") && min <= -10) ||
+      (youLbl.includes("-5")  && min >= -9 && min <= -5) ||
+      (youLbl.includes("e to") && min >= -4 && min <= 0) ||
+      (youLbl.includes("+1")   && min >= 1);
+    return onTrack
+      ? { state: "leading",  label: `On track · ${min === 0 ? "E" : min > 0 ? "+"+min : min}` }
+      : { state: "trailing", label: `Off track · ${min === 0 ? "E" : min > 0 ? "+"+min : min}` };
+  }
+  // Q3 — any 63 or lower in any round.
+  if (q.slot === 3) {
+    const has63 = players.some(p =>
+      [p.r1Score, p.r2Score, p.r3Score, p.r4Score].some(s => typeof s === "number" && s <= 63)
+    );
+    if (has63) {
+      return youKey === "yes"
+        ? { state: "win",  label: "Win"  }
+        : { state: "loss", label: "Loss" };
+    }
+    return { state: "pending", label: "No 63 yet" };
+  }
+  // Q5 — pick a player to finish top-10.
+  if (q.slot === 5) {
+    const pick = findByName(youOpt?.label);
+    if (!pick) return { state: "pending", label: "Pending" };
+    if (pick.status === "mc" || pick.status === "wd" || pick.status === "dfl") {
+      return { state: "loss", label: "Loss" };
+    }
+    const pos = parseInt(String(pick.position || "").replace(/[^0-9]/g, ""), 10);
+    if (Number.isFinite(pos) && pos <= 10) {
+      return { state: "leading", label: `Currently ${pick.position}` };
+    }
+    return { state: "trailing", label: `Currently ${pick.position || "—"}` };
+  }
+  // Q6-Q10 — head-to-head matchups.
+  if (q.slot >= 6 && q.slot <= 10 && q.options?.length >= 2) {
+    const youPlayer = findByName(youOpt?.label);
+    const oppOpt    = q.options.find(o => o.key !== youKey);
+    const oppPlayer = findByName(oppOpt?.label);
+    if (!youPlayer || !oppPlayer) return { state: "pending", label: "Pending" };
+    if (oppPlayer.status === "mc" || oppPlayer.status === "wd" || oppPlayer.status === "dfl") {
+      return { state: "win",  label: "Win · opp out" };
+    }
+    if (youPlayer.status === "mc" || youPlayer.status === "wd" || youPlayer.status === "dfl") {
+      return { state: "loss", label: "Loss · pick out" };
+    }
+    const ys = typeof youPlayer.score === "number" ? youPlayer.score : null;
+    const os = typeof oppPlayer.score === "number" ? oppPlayer.score : null;
+    if (ys == null || os == null) return { state: "pending", label: "Pending" };
+    if (ys < os)  return { state: "leading",  label: `Leading by ${os - ys}` };
+    if (ys > os)  return { state: "trailing", label: `Trailing by ${ys - os}` };
+    return { state: "even", label: "Tied" };
+  }
+  return { state: "pending", label: "Pending" };
+}
+
+function CallLiveBadge({ status }) {
+  if (!status || status.state === "none") {
+    return <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim shrink-0">—</span>;
+  }
+  const map = {
+    win:      { bg: "var(--green)",                color: "var(--bg-1)"      },
+    loss:     { bg: "rgba(180,40,40,0.15)",        color: "rgb(180,40,40)"   },
+    leading:  { bg: "rgba(43,69,53,0.14)",         color: "var(--green)"     },
+    trailing: { bg: "rgba(180,40,40,0.08)",        color: "rgb(180,40,40)"   },
+    even:     { bg: "rgba(184,134,11,0.14)",       color: "rgb(184,134,11)"  },
+    pending:  null,
+  };
+  const style = map[status.state];
+  if (!style) {
+    return <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim shrink-0 whitespace-nowrap">{status.label}</span>;
+  }
+  return (
+    <span className="text-[10px] uppercase tracking-[0.18em] font-bold px-2 py-1 rounded shrink-0 whitespace-nowrap"
+      style={style}>
+      {status.label}
+    </span>
+  );
+}
+
 function CaddiesCallLivePage({ majorId, focusMajor, data, summary, authedUser, onClose }) {
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -6649,16 +6883,7 @@ function CaddiesCallLivePage({ majorId, focusMajor, data, summary, authedUser, o
                         <span className="text-[11px] text-dim italic">No call submitted</span>
                       )}
                     </div>
-                    {scored ? (
-                      <span className="text-[10px] uppercase tracking-[0.18em] font-bold px-2 py-1 rounded shrink-0"
-                        style={correct
-                          ? { background: "var(--green)", color: "var(--bg-1)" }
-                          : { background: "rgba(180,40,40,0.15)", color: "rgb(180,40,40)" }}>
-                        {correct ? "Win" : "Loss"}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] uppercase tracking-[0.18em] font-semibold text-dim shrink-0">Pending</span>
-                    )}
+                    <CallLiveBadge status={computeCallLiveStatus(q, youKey, majorId)} />
                   </div>
                 </div>
               </React.Fragment>
@@ -6666,7 +6891,7 @@ function CaddiesCallLivePage({ majorId, focusMajor, data, summary, authedUser, o
           })}
         </div>
         <div className="text-[12px] text-dim text-center pb-8 leading-relaxed">
-          Live H2H scoring rolls in after each round wraps. All calls scored Sunday and added to your career Call Rate.
+          Live status updates with the leaderboard. Final scoring Sunday after R4.
         </div>
       </main>
     </div>,
