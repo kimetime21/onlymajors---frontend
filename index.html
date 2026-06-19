@@ -8937,22 +8937,29 @@ function SubInModal({ benchIndex, teamId, majorId, picks, onConfirm, onClose }) 
 
       {/* Summary + Lock it in */}
       <div className="mt-4 pt-4 border-t border-line">
-        {target ? (
-          <>
-            <div className="mb-3 text-sm text-text">
-              <span className="text-muted">Confirm: </span>
-              <strong>{target.name}</strong> sits out — <strong className="text-green">{bench.name}</strong> takes the slot.
-            </div>
-            <button onClick={() => onConfirm(selectedIdx)}
-              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
-              Lock it in
-            </button>
-          </>
-        ) : (
-          <button disabled className="w-full font-semibold bg-black/[0.06] text-dim rounded-lg py-2.5 cursor-not-allowed text-sm">
-            Select a starter to replace
-          </button>
-        )}
+        {(() => {
+          const targetGid = selectedIdx !== null ? slot.starters[selectedIdx] : null;
+          const target = targetGid ? (G[targetGid] || GOLFERS_EXT[targetGid] || null) : null;
+          if (!target) {
+            return (
+              <button disabled className="w-full font-semibold bg-black/[0.06] text-dim rounded-lg py-2.5 cursor-not-allowed text-sm">
+                Select a starter to replace
+              </button>
+            );
+          }
+          return (
+            <>
+              <div className="mb-3 text-sm text-text">
+                <span className="text-muted">Confirm: </span>
+                <strong>{target.name}</strong> sits out — <strong className="text-green">{bench?.name || "your bench player"}</strong> takes the slot.
+              </div>
+              <button onClick={() => onConfirm(selectedIdx)}
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
+                Lock it in
+              </button>
+            </>
+          );
+        })()}
         <button onClick={onClose} className="mt-2 w-full text-sm text-dim hover:text-muted">Cancel</button>
       </div>
     </Modal>
@@ -9015,22 +9022,29 @@ function SubOutModal({ starterIndex, teamId, majorId, picks, onConfirm, onClose 
 
       {/* Summary + Lock it in */}
       <div className="mt-4 pt-4 border-t border-line">
-        {incoming ? (
-          <>
-            <div className="mb-3 text-sm text-text">
-              <span className="text-muted">Confirm: </span>
-              <strong>{starter.name}</strong> sits out — <strong className="text-green">{incoming.name}</strong> takes the slot.
-            </div>
-            <button onClick={() => onConfirm(selectedIdx)}
-              className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
-              Lock it in
-            </button>
-          </>
-        ) : (
-          <button disabled className="w-full font-semibold bg-black/[0.06] text-dim rounded-lg py-2.5 cursor-not-allowed text-sm">
-            Select a bench player
-          </button>
-        )}
+        {(() => {
+          const incomingGid = selectedIdx !== null ? slot.bench[selectedIdx] : null;
+          const incoming = incomingGid ? (G[incomingGid] || GOLFERS_EXT[incomingGid] || null) : null;
+          if (!incoming) {
+            return (
+              <button disabled className="w-full font-semibold bg-black/[0.06] text-dim rounded-lg py-2.5 cursor-not-allowed text-sm">
+                Select a bench player
+              </button>
+            );
+          }
+          return (
+            <>
+              <div className="mb-3 text-sm text-text">
+                <span className="text-muted">Confirm: </span>
+                <strong>{starter?.name || "Starter"}</strong> sits out — <strong className="text-green">{incoming.name}</strong> takes the slot.
+              </div>
+              <button onClick={() => onConfirm(selectedIdx)}
+                className="w-full font-semibold rounded-lg py-2.5 transition-colors text-sm disabled:opacity-50 om-pill">
+                Lock it in
+              </button>
+            </>
+          );
+        })()}
         <button onClick={onClose} className="mt-2 w-full text-sm text-dim hover:text-muted">Cancel</button>
       </div>
     </Modal>
