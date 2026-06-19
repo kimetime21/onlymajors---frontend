@@ -1529,6 +1529,7 @@ function App() {
         country:  upd.country ?? cur.country ?? null,
         matched:  upd.matched ?? cur.matched ?? null,
         dg_id:    upd.dg_id   ?? cur.dg_id   ?? null,
+        amateur:  upd.amateur ?? cur.amateur ?? false,
         r1: upd.r1 ?? cur.r1 ?? null,
         r2: upd.r2 ?? cur.r2 ?? null,
         r3: upd.r3 ?? cur.r3 ?? null,
@@ -6982,7 +6983,10 @@ function TourPlayerRow({ player, owners, youId, majorId }) {
         <div className="w-9"><ScorePill status={player.status} position={player.position} /></div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="font-medium truncate">{name}</span>
+            <span className="font-medium truncate">
+              {name}
+              {player.amateur && <span className="text-dim font-normal ml-1">(a)</span>}
+            </span>
             {isMine && <span className="text-[10px] uppercase tracking-wider text-green font-bold">YOURS</span>}
             {!known && <span className="text-[10px] uppercase tracking-wider text-dim font-semibold" title="Not in your league's pickable roster">FIELD</span>}
           </div>
@@ -7031,15 +7035,50 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
         </div>
       )}
       {data && !loading && !error && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
+          {/* Now hero — current round status. Only renders when there's a
+              live round in progress AND we have a position/score for it. */}
+          {data.current?.round && data.current?.scoreToPar != null && (
+            <div className="rounded-lg border border-line-2 px-3 py-2.5"
+              style={{ background: "linear-gradient(135deg, rgba(43,69,53,0.92), rgba(43,69,53,0.78))", color: "var(--bg-1)" }}>
+              <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] font-semibold opacity-80">
+                <span className="w-1.5 h-1.5 bg-red-300 rounded-full live-dot"/>
+                Now · Round {data.current.round}
+              </div>
+              <div className="mt-1 flex items-end justify-between gap-3 flex-wrap">
+                <div className="grid grid-cols-3 gap-4 sm:gap-6 flex-1">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider opacity-70">Position</div>
+                    <div className="display-num font-bold text-xl">{data.current.position || "—"}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider opacity-70">Score</div>
+                    <div className="display-num font-bold text-xl">{fmtScoreToPar(data.current.scoreToPar)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider opacity-70">Today</div>
+                    <div className="display-num font-bold text-xl">
+                      {data.current.todayScoreToPar != null ? fmtScoreToPar(data.current.todayScoreToPar) : "—"}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right text-[11px] opacity-80">
+                  {data.current.thru != null && data.current.thru !== "" ? `thru ${data.current.thru}` : null}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Round-by-round */}
           <StatBlock title="Round-by-round">
             <table className="w-full text-[12px]">
               <thead className="text-dim uppercase tracking-wider text-[10px]">
                 <tr>
-                  <th className="text-left font-semibold pb-1">Round</th>
+                  <th className="text-left font-semibold pb-1">R</th>
                   <th className="text-right font-semibold pb-1">Strokes</th>
                   <th className="text-right font-semibold pb-1">ToPar</th>
+                  <th className="text-right font-semibold pb-1">SG</th>
                   <th className="text-right font-semibold pb-1">Pos</th>
                   <th className="text-right font-semibold pb-1">$</th>
                 </tr>
@@ -7050,13 +7089,16 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
                     <td className="py-1 font-semibold">R{r.round}</td>
                     <td className="py-1 text-right tabular-nums">{r.roundScore == null ? "—" : r.roundScore}</td>
                     <td className="py-1 text-right tabular-nums">{r.scoreToPar === null || r.scoreToPar === undefined ? "—" : (r.scoreToPar === 0 ? "E" : (r.scoreToPar > 0 ? `+${r.scoreToPar}` : r.scoreToPar))}</td>
+                    <td className={`py-1 text-right tabular-nums font-semibold ${r.sg?.total > 0 ? "text-green" : r.sg?.total < 0 ? "text-red" : ""}`}>
+                      {r.sg?.total != null ? (r.sg.total > 0 ? `+${r.sg.total.toFixed(1)}` : r.sg.total.toFixed(1)) : "—"}
+                    </td>
                     <td className="py-1 text-right">{r.position || "—"}</td>
                     <td className="py-1 text-right tabular-nums">{r.money == null ? "—" : fmtCompactMoney(r.money)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <div className="text-[10px] text-dim mt-1.5">Strokes from DataGolf · $ = projected money snapshotted at end of round</div>
+            <div className="text-[10px] text-dim mt-1.5">Strokes + per-round SG from DataGolf · $ = projected money at round end</div>
           </StatBlock>
 
           {/* Tournament SG */}
@@ -7090,6 +7132,7 @@ function PlayerStatsPanel({ majorId, player, displayName }) {
               <div className="text-dim text-[12px] italic">Season totals not available (DataGolf endpoint may not be in your subscription tier).</div>
             )}
           </StatBlock>
+          </div>
         </div>
       )}
     </div>
@@ -7178,6 +7221,46 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
   const defaultMajor = liveMajor || upcomingOpen || upcomingFocus || lastComplete || ALLOWED_MAJORS[0] || MAJORS[0];
   const [viewedMajorId, setViewedMajorId] = useState(defaultMajor.id);
   const viewed = M[viewedMajorId] || defaultMajor;
+  // Live-member sync: backend is source of truth for league rosters. Static
+  // TEAMS only seeds the Experts demo league; user-created leagues like
+  // Keim Boys live entirely on the backend, so we hydrate TEAMS here.
+  const [memberTick, setMemberTick] = useState(0);
+  useEffect(() => {
+    if (!leagueId) return;
+    let cancelled = false;
+    const fetchMembers = () => {
+      apiLeagueMembers(leagueId)
+        .then(list => {
+          if (cancelled || !Array.isArray(list)) return;
+          let mutated = false;
+          for (const m of list) {
+            if (!m.teamId) continue;
+            const existing = TEAMS.find(t => t.id === m.teamId);
+            if (!existing) {
+              const nm = m.teamName || m.displayName || (m.email ? m.email.split("@")[0] : null) || "Member";
+              TEAMS.push({
+                id:    m.teamId,
+                name:  nm,
+                owner: m.displayName || "",
+                email: m.email || "",
+                color: m.teamColor || "#3A5F8A",
+                mono:  nm.slice(0, 2).toUpperCase(),
+              });
+              mutated = true;
+            } else if (m.teamColor && existing.color !== m.teamColor) {
+              existing.color = m.teamColor;
+              if (m.teamName) existing.name = m.teamName;
+              mutated = true;
+            }
+          }
+          if (mutated) setMemberTick(t => t + 1);
+        })
+        .catch(() => {});
+    };
+    fetchMembers();
+    const id = setInterval(fetchMembers, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [leagueId]);
   const completeMajors = ALLOWED_MAJORS.filter(m => m.status === "complete");
   const switcherOptions = useMemo(() => {
     const list = [];
@@ -7207,7 +7290,7 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
         lob:      teamMajorLOB(t.id, viewed.id, picks),
       };
     }).sort(compareTeamsByMajor);
-  }, [picks, viewed.id, lastUpdated]);
+  }, [picks, viewed.id, lastUpdated, memberTick]);
   const leader = rows[0];
 
   return (
@@ -7231,6 +7314,16 @@ function LiveTab({ picks, syncStatus, syncMessage, lastUpdated, onRefresh, onGot
         <PicksOpenLiveState major={viewed} picks={picks} onGotoPicks={onGotoPicks} leagueId={leagueId} />
       ) : !hasData ? (
         <EmptyLiveState major={viewed} />
+      ) : rows.length === 0 || !leader ? (
+        /* League has scoring data but no member teams loaded yet (or none in
+           this league). Show a soft empty state instead of crashing on
+           leader.team access. */
+        <div className="rounded-2xl border border-line bg-white p-8 text-center">
+          <h3 className="font-bold text-lg">Waiting on league rosters</h3>
+          <p className="text-sm text-muted mt-2 max-w-md mx-auto leading-relaxed">
+            The {viewed.name} is underway, but no members of this league have rosters loaded yet. Refresh in a moment — once picks sync, you'll see the league leaderboard here.
+          </p>
+        </div>
       ) : (
         <>
           {/* Hero card */}
