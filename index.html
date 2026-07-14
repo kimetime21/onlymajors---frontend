@@ -2290,6 +2290,11 @@ function LeagueHub({ authedUser, leagues, picks, syncToken, onEnterLeague, onOpe
       for (const m of MAJORS) {
         if (m.status !== "complete") continue;
         if (!includedSet.has(m.id)) continue;
+        // Same "only count majors we actually entered" guard as the
+        // per-league averages panel. Keeps the avg from being diluted by
+        // pre-league-existence zeros.
+        const played = !!(mergedPicks?.[myTeamId]?.[m.id]?.starters?.some(Boolean));
+        if (!played) continue;
         const mine = teamMajorTotal(myTeamId, m.id, mergedPicks);
         tournSum  += mine;
         tournCount++;
@@ -3552,19 +3557,21 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
 function HallOfFameList() {
   const [archive, setArchive] = useState(null);
   const [err,     setErr]     = useState(null);
+  // Backend returns { majors: [...] } — extract that shape defensively.
+  const extract = (d) => {
+    if (Array.isArray(d?.majors)) return d.majors;
+    if (Array.isArray(d?.archive)) return d.archive;
+    if (Array.isArray(d)) return d;
+    return [];
+  };
   useEffect(() => {
-    apiGetClubChampArchive()
-      .then(d => setArchive(Array.isArray(d?.archive) ? d.archive : Array.isArray(d) ? d : []))
-      .catch(e => setErr(e.message));
-  }, []);
-  // Also refresh whenever a major status flips complete — every 5min while
-  // the card is expanded. Cheap poll; archive is small.
-  useEffect(() => {
-    const id = setInterval(() => {
+    const load = () => {
       apiGetClubChampArchive()
-        .then(d => setArchive(Array.isArray(d?.archive) ? d.archive : Array.isArray(d) ? d : []))
-        .catch(() => {});
-    }, 5 * 60 * 1000);
+        .then(d => setArchive(extract(d)))
+        .catch(e => setErr(e.message));
+    };
+    load();
+    const id = setInterval(load, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
   const MAJOR_NAMES = { masters: "The Masters", pga: "PGA Championship", usopen: "U.S. Open", open: "The Open" };
@@ -3584,11 +3591,12 @@ function HallOfFameList() {
     );
   }
   const fmtM = (n) => n == null ? "—" : `$${(n/1e6).toFixed(2)}M`;
-  // Sort newest first
+  // Sort newest first — most recent major at top.
   const sorted = [...archive].sort((a, b) => {
     const ay = Number(b.year) - Number(a.year);
     if (ay !== 0) return ay;
-    return new Date(b.finalized_at || b.finalizedAt || 0).getTime() - new Date(a.finalized_at || a.finalizedAt || 0).getTime();
+    return new Date(b.finalizedAt || b.finalized_at || 0).getTime()
+         - new Date(a.finalizedAt || a.finalized_at || 0).getTime();
   });
   return (
     <div className="space-y-1">
@@ -3596,10 +3604,10 @@ function HallOfFameList() {
         Hall of Fame · {archive.length} {archive.length === 1 ? "champion" : "champions"}
       </div>
       {sorted.map((r, i) => {
-        const majorId = r.major_id || r.majorId;
+        const majorId = r.majorId || r.major_id;
         const majorName = MAJOR_NAMES[majorId] || majorId;
-        const champName = r.champion_name || r.championName || "—";
-        const total = Number(r.champion_total ?? r.championTotal ?? 0);
+        const champName = r.championName || r.champion_name || "—";
+        const total = Number(r.championTotal ?? r.champion_total ?? 0);
         return (
           <div key={`${majorId}-${r.year}-${i}`} className="flex items-center justify-between gap-3 py-1.5 border-b border-line last:border-0">
             <div className="min-w-0 flex-1">
@@ -4528,6 +4536,11 @@ function LeagueAveragesPanel({ leagueId, members, picks, myTeamId, syncToken }) 
       }
       for (const m of MAJORS) {
         if (m.status !== "complete") continue;
+        // Only count majors where the team actually submitted a roster.
+        // Otherwise a new league gets its avg dragged down by pre-existence
+        // "zero" majors (e.g. Keim Boys didn't play Masters or PGA).
+        const played = !!(picks?.[teamId]?.[m.id]?.starters?.some(Boolean));
+        if (!played) continue;
         const earnings = teamMajorTotal(teamId, m.id, picks);
         tournSum += earnings; tournCount++;
         if (earnings > tournPR) tournPR = earnings;
