@@ -2870,11 +2870,16 @@ function HandicapStatsCard({ stats }) {
   const hasStats = stats && (stats.tournCount > 0 || stats.seasonCount > 0 || stats.tournWins > 0 || stats.overallWins > 0);
   const [expanded, setExpanded] = useState(false);
   const [ccSummary, setCcSummary] = useState(null);
+  const [champSummary, setChampSummary] = useState(null);
   useEffect(() => {
     if (!expanded) return;
     authFetch(`${ONLYMAJORS_API}/api/me/caddies-call/summary`, { cache: "no-store" })
       .then(r => r.json())
       .then(s => setCcSummary(s))
+      .catch(() => {});
+    authFetch(`${ONLYMAJORS_API}/api/me/club-championship/summary`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(s => setChampSummary(s))
       .catch(() => {});
   }, [expanded]);
   return (
@@ -2930,13 +2935,26 @@ function HandicapStatsCard({ stats }) {
               Club Championship
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <CareerStat label="Career avg" value="—" sub="awaits first event" />
-              <CareerStat label="PR" value="—" sub="best single major" />
-              <CareerStat label="Wins" value="0" sub="championships" />
+              <CareerStat
+                label="Career avg"
+                value={champSummary?.majorsPlayed ? fmt(champSummary.avgTotal) : "—"}
+                sub={champSummary?.majorsPlayed ? `${champSummary.majorsPlayed} ${champSummary.majorsPlayed === 1 ? "major" : "majors"}` : "no entries yet"} />
+              <CareerStat
+                label="PR"
+                value={champSummary?.bestFinish ? fmt(champSummary.bestFinish) : "—"}
+                sub="best single major"
+                highlight={champSummary?.bestFinish > 0} />
+              <CareerStat
+                label="Wins"
+                value={String(champSummary?.wins ?? 0)}
+                sub={champSummary?.wins === 1 ? "championship" : "championships"}
+                highlight={(champSummary?.wins ?? 0) > 0} />
             </div>
-            <div className="text-[11px] text-dim italic mt-2">
-              First Club Championship crowns Sunday at the U.S. Open.
-            </div>
+            {(!champSummary || champSummary.majorsPlayed === 0) && (
+              <div className="text-[11px] text-dim italic mt-2">
+                Enter the Club Championship to start your career line.
+              </div>
+            )}
           </div>
           <div>
             <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
@@ -4158,7 +4176,7 @@ function LeagueHubCard({ entry, activeMajor, liveMajor, syncToken, authedUserId,
       </button>
 
       {/* Archive panel */}
-      {archiveOpen && <LeagueArchivePanel leagueId={league.id} />}
+      {archiveOpen && <LeagueArchivePanel leagueId={league.id} picks={picks} members={members} />}
 
       {/* League-wide averages toggle */}
       <button onClick={() => setAveragesOpen(o => !o)}
@@ -4361,7 +4379,7 @@ function MemberRow({ m, isMe, busy, onRename, onKick }) {
     </div>
   );
 }
-function LeagueArchivePanel({ leagueId }) {
+function LeagueArchivePanel({ leagueId, picks, members }) {
   const [years,   setYears]   = useState(null);
   const [error,   setError]   = useState(null);
   const [loading, setLoading] = useState(true);
@@ -4376,11 +4394,86 @@ function LeagueArchivePanel({ leagueId }) {
     return () => { cancelled = true; };
   }, [leagueId]);
 
+  // Synthesize a current-season summary from live picks so members see
+  // this year's major-by-major progress instead of just historical rows.
+  const currentSeason = useMemo(() => {
+    if (!picks) return null;
+    const currentYear = new Date().getFullYear();
+    const majorWinners = {};
+    const teamTotals = {};
+    const memberList = Array.isArray(members) ? members : teamsForLeague(leagueId);
+    for (const m of MAJORS) {
+      if (m.status !== "complete") continue;
+      let best = null;
+      for (const t of memberList) {
+        const teamId = t.teamId || t.id;
+        const total  = teamMajorTotal(teamId, m.id, picks);
+        teamTotals[teamId] = (teamTotals[teamId] || 0) + (total || 0);
+        if (total > 0 && (!best || total > best.total)) {
+          best = { teamId, teamName: t.teamName || t.name, total };
+        }
+      }
+      if (best) majorWinners[m.id] = best;
+    }
+    const completedCount = Object.keys(majorWinners).length;
+    if (completedCount === 0) return null;
+    let seasonLeader = null;
+    for (const teamId of Object.keys(teamTotals)) {
+      const total = teamTotals[teamId];
+      if (!seasonLeader || total > seasonLeader.total) {
+        const t = memberList.find(x => (x.teamId || x.id) === teamId);
+        seasonLeader = { teamId, teamName: t?.teamName || t?.name, total };
+      }
+    }
+    return { year: currentYear, majorWinners, seasonLeader, completedCount };
+  }, [picks, members, leagueId]);
+
   return (
     <div className="border-t border-line bg-bg2/40 px-4 sm:px-5 py-4 space-y-3 fade-in">
       {loading && <div className="text-xs text-dim">Loading archive…</div>}
       {error   && <div className="text-xs text-red">Couldn't load archive: {error}</div>}
-      {!loading && !error && years && years.length === 0 && (
+      {/* Current-season progress card — always visible when at least one
+          major has completed this year. Historical archives render below. */}
+      {currentSeason && (
+        <div className="rounded-xl border border-gold/40 bg-gold/[0.06] p-3 sm:p-4">
+          <div className="flex items-baseline justify-between gap-2 flex-wrap">
+            <div className="flex items-baseline gap-2">
+              <span className="font-bold text-base display-num">{currentSeason.year}</span>
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-gold">In progress</span>
+            </div>
+            {currentSeason.seasonLeader && (
+              <span className="text-xs text-dim">
+                Season leader: <span className="font-semibold text-text">{currentSeason.seasonLeader.teamName}</span>
+                <span className="font-mono text-muted"> · {fmt(currentSeason.seasonLeader.total)}</span>
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+            {[
+              { id: "masters", short: "Masters" },
+              { id: "pga",     short: "PGA" },
+              { id: "usopen",  short: "U.S. Open" },
+              { id: "open",    short: "The Open" },
+            ].map(m => {
+              const w = currentSeason.majorWinners[m.id];
+              return (
+                <div key={m.id} className="rounded-md border border-line bg-white px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wider text-dim font-semibold">{m.short}</div>
+                  {w ? (
+                    <>
+                      <div className="text-sm font-semibold truncate mt-0.5">{w.teamName}</div>
+                      <div className="text-[11px] text-muted font-mono">{fmt(w.total)}</div>
+                    </>
+                  ) : (
+                    <div className="text-[11px] text-dim italic mt-1">Pending</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {!loading && !error && years && years.length === 0 && !currentSeason && (
         <div className="text-xs text-muted leading-relaxed">
           <div className="font-semibold text-text mb-1">No seasons archived yet</div>
           Past-year history will appear here once we seed it from your league's records. Send over a PDF or spreadsheet and we'll backfill champions, major winners, and earnings — then year-after-year it auto-archives at the end of each season.
