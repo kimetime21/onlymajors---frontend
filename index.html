@@ -3914,119 +3914,76 @@ function ClubChampPickRow({ slot, name, onChange, disabled }) {
   );
 }
 function LeagueWideAveragesList({ memberNumber, authedUser }) {
-  const liveMajor   = MAJORS.find(m => m.status === "live");
-  const nextMajor   = MAJORS.find(m => m.status === "upcoming");
-  const focusMajor  = liveMajor || nextMajor || MAJORS[MAJORS.length - 1];
-  const [standings, setStandings] = useState(null);
-  const [err, setErr] = useState(null);
-
+  // Top 10 members by CAREER AVERAGE across all completed Club Championships.
+  // Backend endpoint: /api/club-championship/averages. Grows as more majors
+  // are finalized. Sunday U.S. Open finalize populates the first data point.
+  const [data, setData] = useState(null);
+  const [err,  setErr]  = useState(null);
   useEffect(() => {
-    if (!focusMajor?.id) return;
     let cancelled = false;
     const load = () => {
-      apiGetClubChampStandings(focusMajor.id)
-        .then(d => { if (!cancelled) setStandings(d); })
+      authFetch(`${ONLYMAJORS_API}/api/club-championship/averages`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(d => { if (!cancelled) setData(d); })
         .catch(e => { if (!cancelled) setErr(e.message); });
     };
     load();
-    // Poll every 60s during live play so totals refresh without a page reload.
-    const id = setInterval(load, 60 * 1000);
+    const id = setInterval(load, 5 * 60 * 1000);
     return () => { cancelled = true; clearInterval(id); };
-  }, [focusMajor?.id]);
-
+  }, []);
+  const youUserId = authedUser?.id ? Number(authedUser.id) : null;
   const youName = (() => {
     const f = authedUser?.firstName, l = authedUser?.lastName;
     if (f && l) return `${f} ${l[0].toUpperCase()}.`;
     return authedUser?.displayName?.split(/[\s@]/)[0] || "You";
   })();
-  const youUserId = authedUser?.id ? Number(authedUser.id) : null;
-  const hasResults = (standings?.top10?.length || 0) > 0;
-  const submitters = standings?.submitters || [];
-  const fieldSize  = standings?.fieldSize ?? submitters.length;
-
-  let rows;
-  if (hasResults) {
-    rows = standings.top10.map(r => ({
-      rank:  r.rank,
-      label: r.name,
-      total: r.total,
-      isYou: r.userId === youUserId,
-    }));
-  } else {
-    rows = submitters.slice(0, 10).map((s, i) => ({
-      rank:  i + 1,
-      label: s.name,
-      total: null,
-      isYou: s.userId === youUserId,
-    }));
-  }
-  const youSubmitter = submitters.find(s => s.userId === youUserId) || null;
-  const youInTopTen  = rows.some(r => r.isYou);
-  const fmtM = (n) => n == null ? "—" : `$${(n/1e6).toFixed(2)}M`;
-
-  if (err) {
-    return (
-      <div className="text-[12px] text-dim text-center py-4">
-        Couldn't load standings — try again in a sec.
-      </div>
-    );
-  }
-  if (!standings) {
-    return (
-      <div className="text-[12px] text-dim text-center py-4">Loading standings…</div>
-    );
-  }
-  if (fieldSize === 0) {
+  const fmtM = (n) => n == null ? "—" : n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : `$${Math.round(n/1000)}K`;
+  if (err)   return <div className="text-[12px] text-dim text-center py-4">Couldn't load averages.</div>;
+  if (!data) return <div className="text-[12px] text-dim text-center py-4">Loading averages…</div>;
+  const top10 = data.top10 || [];
+  if (top10.length === 0) {
     return (
       <div className="text-center py-6">
-        <div className="text-sm font-semibold text-muted mb-1">No entries yet</div>
+        <div className="text-sm font-semibold text-muted mb-1">No completed Club Championships yet</div>
         <div className="text-[12px] text-dim leading-relaxed max-w-xs mx-auto">
-          Be the first to enter the Club Championship — your row will pin here as soon as you lock in.
+          Once the first major finalizes, career averages start populating here.
         </div>
       </div>
     );
   }
-
+  const youInTop = top10.some(r => r.userId === youUserId);
   return (
     <div>
       <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
-        {hasResults
-          ? `Tournament total · ${fieldSize} ${fieldSize === 1 ? "member" : "members"}`
-          : `${fieldSize} ${fieldSize === 1 ? "member" : "members"} entered · ordered by submission`}
+        Top 10 · career average across all Club Championships
       </div>
       <div className="space-y-0">
-        {rows.map((r) => (
-          <div key={`${r.rank}-${r.label}`} className="flex items-center gap-3 py-1.5 px-2 border-b border-line last:border-0"
-            style={r.isYou ? { background: "rgba(43,69,53,0.06)" } : {}}>
-            <div className="w-6 text-[12px] font-mono text-dim">{r.rank}</div>
-            <div className="flex-1 text-sm font-medium truncate">
-              {r.label}
-              {r.isYou && <span className="text-[10px] uppercase tracking-wider text-green ml-2">You</span>}
+        {top10.map((r) => (
+          <div key={r.userId} className="flex items-center gap-3 py-1.5 px-2 border-b border-line last:border-0"
+            style={r.userId === youUserId ? { background: "rgba(43,69,53,0.06)" } : {}}>
+            <div className={`w-6 text-[12px] font-mono font-semibold text-right ${r.rank === 1 ? "text-gold" : "text-dim"}`}>
+              {r.rank}
             </div>
-            <div className="text-sm font-semibold">{hasResults ? fmtM(r.total) : "—"}</div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">
+                {r.name}
+                {r.userId === youUserId && <span className="text-[10px] uppercase tracking-wider text-green ml-2">You</span>}
+              </div>
+              <div className="text-[10px] text-dim">
+                {r.majorsPlayed} {r.majorsPlayed === 1 ? "major" : "majors"} · best {fmtM(r.bestFinish)}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm font-bold" style={{ color: "var(--green)" }}>{fmtM(r.avgTotal)}</div>
+              <div className="text-[10px] text-dim">avg</div>
+            </div>
           </div>
         ))}
       </div>
-      {/* Pinned "you" row — visible regardless of whether you're in the top 10
-          OR you've actually submitted yet. Gives a clear "where am I in this"
-          anchor for every member. */}
-      {!youInTopTen && (
+      {!youInTop && youUserId != null && (
         <div className="mt-3 pt-2 border-t border-dashed border-line">
-          <div className="flex items-center gap-3 py-1.5 px-2 rounded"
-            style={{ background: "rgba(43,69,53,0.06)" }}>
-            <div className="w-8 text-[12px] font-mono font-semibold" style={{ color: "var(--green)" }}>
-              {memberNumber != null ? `#${memberNumber}` : "—"}
-            </div>
-            <div className="flex-1 text-sm font-medium truncate">
-              {youSubmitter?.name || youName}
-              <span className="text-[10px] uppercase tracking-wider text-green ml-2">You</span>
-              {!youSubmitter && (
-                <span className="text-[10px] uppercase tracking-wider text-dim ml-2">Not entered yet</span>
-              )}
-            </div>
-            <div className="text-sm font-semibold">
-              {hasResults && standings.you?.total != null ? fmtM(standings.you.total) : "—"}
-            </div>
+          <div className="text-[11px] text-dim text-center italic">
+            You haven't cracked the top 10 career average yet.
           </div>
         </div>
       )}
