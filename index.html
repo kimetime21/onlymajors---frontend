@@ -8159,6 +8159,41 @@ function LiveLineItem({ golferId, majorId, slot, role }) {
 }
 
 function LeaderboardTab({ picks, viewAs, leagueId }) {
+  // Same TEAMS hydration as LiveTab / ChatTab — Money List needs the full
+  // roster of league members to sum earnings correctly for user-created
+  // leagues (Experts is pre-seeded so this is a no-op there).
+  const [memberTick, setMemberTick] = useState(0);
+  useEffect(() => {
+    if (!leagueId) return;
+    let cancelled = false;
+    apiLeagueMembers(leagueId)
+      .then(list => {
+        if (cancelled || !Array.isArray(list)) return;
+        let mutated = false;
+        for (const m of list) {
+          if (!m.teamId) continue;
+          const existing = TEAMS.find(t => t.id === m.teamId);
+          if (!existing) {
+            const nm = m.teamName || m.displayName || (m.email ? m.email.split("@")[0] : null) || "Member";
+            TEAMS.push({
+              id:    m.teamId,
+              name:  nm,
+              owner: m.displayName || "",
+              email: m.email || "",
+              color: m.teamColor || "#3A5F8A",
+              mono:  nm.slice(0, 2).toUpperCase(),
+            });
+            mutated = true;
+          } else if (m.teamColor && existing.color !== m.teamColor) {
+            existing.color = m.teamColor;
+            if (m.teamName) existing.name = m.teamName;
+            mutated = true;
+          }
+        }
+        if (mutated) setMemberTick(t => t + 1);
+      })
+      .catch(() => {});
+  }, [leagueId]);
   const rows = useMemo(() => {
     const r = teamsForLeague(leagueId).map(t => {
       const byMajor = {};
@@ -8181,7 +8216,7 @@ function LeaderboardTab({ picks, viewAs, leagueId }) {
           ? (r[i-1].originalTotal !== x.originalTotal ? "original-starters" : "left-on-base")
           : null,
     }));
-  }, [picks, leagueId]);
+  }, [picks, leagueId, memberTick]);
 
   const liveId = MAJORS.find(m => m.status === "live")?.id;
 
