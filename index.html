@@ -3550,30 +3550,71 @@ function ClubChampionshipLivePage({ focusMajor, memberNumber, authedUser, onClos
   );
 }
 function HallOfFameList() {
-  const rows = [
-    { year: 2026, major: "U.S. Open", champion: "—", total: null },
-    { year: 2026, major: "The Open",  champion: "—", total: null },
-  ];
+  const [archive, setArchive] = useState(null);
+  const [err,     setErr]     = useState(null);
+  useEffect(() => {
+    apiGetClubChampArchive()
+      .then(d => setArchive(Array.isArray(d?.archive) ? d.archive : Array.isArray(d) ? d : []))
+      .catch(e => setErr(e.message));
+  }, []);
+  // Also refresh whenever a major status flips complete — every 5min while
+  // the card is expanded. Cheap poll; archive is small.
+  useEffect(() => {
+    const id = setInterval(() => {
+      apiGetClubChampArchive()
+        .then(d => setArchive(Array.isArray(d?.archive) ? d.archive : Array.isArray(d) ? d : []))
+        .catch(() => {});
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  const MAJOR_NAMES = { masters: "The Masters", pga: "PGA Championship", usopen: "U.S. Open", open: "The Open" };
+  if (err)     return <div className="text-[12px] text-dim text-center py-4">Couldn't load Hall of Fame.</div>;
+  if (!archive) return <div className="text-[12px] text-dim text-center py-4">Loading Hall of Fame…</div>;
+  if (archive.length === 0) {
+    return (
+      <div className="space-y-1">
+        <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
+          Hall of Fame — first champion crowned this Sunday
+        </div>
+        <div className="text-center py-6">
+          <div className="text-sm font-semibold text-muted mb-1">Awaiting first Club Championship</div>
+          <div className="text-[12px] text-dim">Each major's champion joins the Hall of Fame Sunday night after scoring.</div>
+        </div>
+      </div>
+    );
+  }
+  const fmtM = (n) => n == null ? "—" : `$${(n/1e6).toFixed(2)}M`;
+  // Sort newest first
+  const sorted = [...archive].sort((a, b) => {
+    const ay = Number(b.year) - Number(a.year);
+    if (ay !== 0) return ay;
+    return new Date(b.finalized_at || b.finalizedAt || 0).getTime() - new Date(a.finalized_at || a.finalizedAt || 0).getTime();
+  });
   return (
     <div className="space-y-1">
       <div className="text-[11px] uppercase tracking-wider text-dim font-semibold mb-2">
-        Hall of Fame — first champion crowned this Sunday
+        Hall of Fame · {archive.length} {archive.length === 1 ? "champion" : "champions"}
       </div>
-      {rows.map((r, i) => (
-        <div key={i} className="flex items-center justify-between gap-3 py-1.5 border-b border-line last:border-0">
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-semibold">{r.major}</div>
-            <div className="text-[12px] text-dim">{r.year}</div>
-          </div>
-          <div className="text-right">
-            <div className="text-sm font-semibold">
-              {r.champion}
-              {r.you && <span className="text-[10px] uppercase tracking-wider text-green ml-1.5">You</span>}
+      {sorted.map((r, i) => {
+        const majorId = r.major_id || r.majorId;
+        const majorName = MAJOR_NAMES[majorId] || majorId;
+        const champName = r.champion_name || r.championName || "—";
+        const total = Number(r.champion_total ?? r.championTotal ?? 0);
+        return (
+          <div key={`${majorId}-${r.year}-${i}`} className="flex items-center justify-between gap-3 py-1.5 border-b border-line last:border-0">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold">{majorName}</div>
+              <div className="text-[12px] text-dim">{r.year}</div>
             </div>
-            <div className="text-[11px] text-dim">{r.total ? `$${(r.total/1e6).toFixed(2)}M` : "Awaiting first contest"}</div>
+            <div className="text-right">
+              <div className="text-sm font-semibold" style={{ color: "var(--gold)" }}>
+                {champName}
+              </div>
+              <div className="text-[11px] text-dim">{total > 0 ? fmtM(total) : "—"}</div>
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -3874,10 +3915,15 @@ function LeagueWideAveragesList({ memberNumber, authedUser }) {
   useEffect(() => {
     if (!focusMajor?.id) return;
     let cancelled = false;
-    apiGetClubChampStandings(focusMajor.id)
-      .then(d => { if (!cancelled) setStandings(d); })
-      .catch(e => { if (!cancelled) setErr(e.message); });
-    return () => { cancelled = true; };
+    const load = () => {
+      apiGetClubChampStandings(focusMajor.id)
+        .then(d => { if (!cancelled) setStandings(d); })
+        .catch(e => { if (!cancelled) setErr(e.message); });
+    };
+    load();
+    // Poll every 60s during live play so totals refresh without a page reload.
+    const id = setInterval(load, 60 * 1000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [focusMajor?.id]);
 
   const youName = (() => {
@@ -6646,10 +6692,16 @@ function CaddiesCallHallOfFame({ authedUser }) {
   const [data, setData] = useState(null);
   const [err,  setErr]  = useState(null);
   useEffect(() => {
-    authFetch(`${ONLYMAJORS_API}/api/caddies-call/hall-of-fame`, { cache: "no-store" })
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(e => setErr(e.message));
+    const load = () => {
+      authFetch(`${ONLYMAJORS_API}/api/caddies-call/hall-of-fame`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(d => setData(d))
+        .catch(e => setErr(e.message));
+    };
+    load();
+    // Refresh every 5 min so Sunday-night scoring auto-populates the HoF.
+    const id = setInterval(load, 5 * 60 * 1000);
+    return () => clearInterval(id);
   }, []);
   const youId = authedUser?.id ? Number(authedUser.id) : null;
   if (err)   return <div className="text-[12px] text-dim text-center py-4">Couldn't load Hall of Fame.</div>;
@@ -6717,10 +6769,15 @@ function CaddiesCallAverages({ majorId, majorShort }) {
   const [data, setData] = useState(null);
   const [err,  setErr]  = useState(null);
   useEffect(() => {
-    authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}/averages`, { cache: "no-store" })
-      .then(r => r.json())
-      .then(d => setData(d))
-      .catch(e => setErr(e.message));
+    const load = () => {
+      authFetch(`${ONLYMAJORS_API}/api/caddies-call/${majorId}/averages`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(d => setData(d))
+        .catch(e => setErr(e.message));
+    };
+    load();
+    const id = setInterval(load, 60 * 1000);
+    return () => clearInterval(id);
   }, [majorId]);
   if (err)   return <div className="text-[12px] text-dim text-center py-4">Couldn't load averages.</div>;
   if (!data) return <div className="text-[12px] text-dim text-center py-4">Loading averages…</div>;
