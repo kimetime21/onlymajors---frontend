@@ -1074,6 +1074,17 @@ async function fetchAllPicks(leagueId) {
   if (!res.ok) throw new Error(`/api/picks HTTP ${res.status}`);
   return await res.json();
 }
+// Authoritative list of golfers this user has already played (starters +
+// subbed-in) in past majors in this league. Backend is source of truth so
+// the picker locks past picks correctly even if the local picks tree has
+// team-id drift between leagues (Experts uses first-name, user-created
+// leagues use lg{N}-u{userId}).
+async function fetchPlayedGolfers(leagueId) {
+  const res = await authFetch(`${ONLYMAJORS_API}/api/played-golfers${lqs(leagueId)}`, { cache: "no-store" });
+  if (!res.ok) throw new Error(`/api/played-golfers HTTP ${res.status}`);
+  const data = await res.json();
+  return new Set(Array.isArray(data?.played) ? data.played : []);
+}
 async function savePick(teamId, majorId, slot, leagueId) {
   const body = {
     starters:        slot?.starters  || [],
@@ -1307,6 +1318,11 @@ function App() {
     });
   }, []);
 
+  // Authoritative set of gids this user has already played in the active
+  // league (from GET /api/played-golfers). Backend is source of truth so
+  // the picker locks correctly across leagues even when team_id conventions
+  // differ. Passed into PickerModal alongside client-side lockedFromOthers.
+  const [playedGolfers, setPlayedGolfers] = useState(() => new Set());
   const [picksDraft, setPicksDraft] = useState(() => {
     try { const saved = localStorage.getItem("epga.picks"); if (saved) return JSON.parse(saved); } catch {}
     return PICKS;
@@ -1365,6 +1381,11 @@ function App() {
       console.warn("picks hydrate failed, using local state:", e.message);
       lastSavedPicksRef.current = JSON.parse(JSON.stringify(picksDraft));
     });
+    // Pull authoritative played-golfers set alongside picks. This is what
+    // the picker uses for lockouts — bypasses team_id drift entirely.
+    fetchPlayedGolfers(activeLeagueId)
+      .then(setPlayedGolfers)
+      .catch(e => console.warn("played-golfers hydrate failed:", e.message));
   }, [activeLeagueId, leagues]);
   useEffect(() => {
     try { localStorage.setItem("epga.picks", JSON.stringify(picksDraft)); } catch {}
@@ -1724,7 +1745,7 @@ function App() {
       )}
 
       {pickerState && (
-        <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={safePicks} dynamicField={dynamicFields[selectedMajor]}
+        <PickerModal state={pickerState} teamId={viewAs} majorId={selectedMajor} picks={safePicks} playedGolfers={playedGolfers} dynamicField={dynamicFields[selectedMajor]}
           onPick={(gid) => {
             const next = JSON.parse(JSON.stringify(picksDraft));
             const slot = next[viewAs][selectedMajor];
@@ -8993,19 +9014,28 @@ function Rule({ n, t, children }) {
   );
 }
 
-function PickerModal({ state, teamId, majorId, picks, dynamicField, onPick, onClose }) {
+function PickerModal({ state, teamId, majorId, picks, playedGolfers, dynamicField, onPick, onClose }) {
   const major = M[majorId];
 
   const lockedFromOthers = useMemo(() => {
     const s = new Set();
+    // 1. Server-authoritative set: past-major starters + subbed-in from the
+    //    picks table for this user in this league. Robust against team_id
+    //    drift that used to break lockouts in user-created leagues.
+    if (playedGolfers && playedGolfers.size) {
+      playedGolfers.forEach(g => g && s.add(g));
+    }
+    // 2. Client-side overlay: catches picks/subs made this session that
+    //    haven't been reflected in the server-side set yet.
     for (const m of MAJORS) {
       if (m.id === majorId) continue;
-      const p = picks[teamId][m.id];
+      const p = picks[teamId]?.[m.id];
+      if (!p) continue;
       p.starters?.forEach(g => g && s.add(g));
       (p.subs || []).forEach(sub => { if (sub.in) s.add(sub.in); });
     }
     return s;
-  }, [picks, teamId, majorId]);
+  }, [picks, teamId, majorId, playedGolfers]);
 
   const inLineup = useMemo(() => {
     const p = picks[teamId][majorId];
